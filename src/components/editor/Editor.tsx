@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -8,12 +8,19 @@ import { EditorToolbar } from './EditorToolbar';
 import { FloatingRefineMenu } from './FloatingRefineMenu';
 import { ShadowSuggestion } from './ShadowSuggestion';
 import { useDocumentStore } from '@/stores/documentStore';
-import { countWords } from '@/lib/utils';
 
 export function Editor() {
-  const { setContent, shadowSuggestion } = useDocumentStore();
+  const { 
+    content,
+    setContent, 
+    shadowSuggestion,
+    activeDocumentId,
+    loadDocument,
+    fetchDocuments,
+  } = useDocumentStore();
+  
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isInternalUpdate = useRef(false);
+  const isLoadingContent = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -37,6 +44,9 @@ export function Editor() {
       },
     },
     onUpdate: ({ editor }) => {
+      // Don't trigger save when we're loading content
+      if (isLoadingContent.current) return;
+      
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
@@ -44,9 +54,40 @@ export function Editor() {
       saveTimeoutRef.current = setTimeout(() => {
         const html = editor.getHTML();
         setContent(html);
-      }, 1000);
+      }, 300); // Reduced delay for more responsive feel, autosave handles the actual save
     },
   });
+
+  // Load the last active document on mount
+  useEffect(() => {
+    const initializeDocument = async () => {
+      await fetchDocuments();
+      
+      const savedDocumentId = localStorage.getItem('exlibris_active_document');
+      if (savedDocumentId) {
+        try {
+          await loadDocument(savedDocumentId);
+        } catch (error) {
+          // Document might have been deleted, clear the reference
+          localStorage.removeItem('exlibris_active_document');
+        }
+      }
+    };
+    
+    initializeDocument();
+  }, []);
+
+  // Sync editor content when document content changes (e.g., when loading a document)
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      isLoadingContent.current = true;
+      editor.commands.setContent(content);
+      // Use requestAnimationFrame to ensure the flag is reset after the update cycle
+      requestAnimationFrame(() => {
+        isLoadingContent.current = false;
+      });
+    }
+  }, [editor, content, activeDocumentId]);
 
   useEffect(() => {
     return () => {

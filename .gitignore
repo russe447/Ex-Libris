@@ -34,3 +34,6 @@ dist-ssr
 # Build outputs
 build
 *.tsbuildinfo
+server/*.db
+server/*.db-shm
+server/*.db-wal

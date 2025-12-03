@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PanelRightClose, PanelRight, MessageSquare, FileText, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ChatPanel } from './ChatPanel';
+import { DocumentsPanel } from './DocumentsPanel';
 import { cn } from '@/lib/utils';
 
 type SidebarTab = 'chat' | 'documents' | 'settings';
@@ -86,16 +87,7 @@ export function Sidebar() {
           <div className="flex-1 overflow-hidden">
             {activeTab === 'chat' && <ChatPanel />}
             
-            {activeTab === 'documents' && (
-              <div className="p-4">
-                <h2 className="font-display text-lg text-academia-text-primary mb-4">
-                  Documents
-                </h2>
-                <p className="text-sm text-academia-text-muted">
-                  Document management coming soon...
-                </p>
-              </div>
-            )}
+            {activeTab === 'documents' && <DocumentsPanel />}
 
             {activeTab === 'settings' && (
               <div className="p-4">
