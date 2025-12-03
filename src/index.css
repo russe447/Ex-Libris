@@ -1,0 +1,144 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  html {
+    @apply antialiased;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-academia-bg-primary text-academia-text-primary font-serif;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-academia-bg-secondary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-academia-border-strong rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-academia-text-muted;
+  }
+
+  ::selection {
+    @apply bg-academia-accent-gold/30 text-academia-text-primary;
+  }
+}
+
+@layer components {
+  .tiptap-editor {
+    @apply outline-none;
+  }
+
+  .tiptap-editor p {
+    @apply mb-4 text-editor leading-relaxed;
+  }
+
+  .tiptap-editor h1 {
+    @apply font-display text-4xl font-semibold mb-6 mt-8 text-academia-text-primary;
+  }
+
+  .tiptap-editor h2 {
+    @apply font-display text-3xl font-semibold mb-5 mt-7 text-academia-text-primary;
+  }
+
+  .tiptap-editor h3 {
+    @apply font-display text-2xl font-medium mb-4 mt-6 text-academia-text-primary;
+  }
+
+  .tiptap-editor strong {
+    @apply font-semibold text-academia-text-primary;
+  }
+
+  .tiptap-editor em {
+    @apply italic;
+  }
+
+  .tiptap-editor blockquote {
+    @apply border-l-2 border-academia-accent-gold pl-6 my-6 italic text-academia-text-secondary;
+  }
+
+  .tiptap-editor ul,
+  .tiptap-editor ol {
+    @apply pl-6 mb-4;
+  }
+
+  .tiptap-editor li {
+    @apply mb-2;
+  }
+
+  .tiptap-editor hr {
+    @apply border-academia-border my-8;
+  }
+
+  .tiptap-editor p.is-editor-empty:first-child::before {
+    @apply text-academia-text-muted pointer-events-none float-left h-0;
+    content: attr(data-placeholder);
+  }
+
+  .shadow-suggestion {
+    @apply bg-academia-shadow-bg border-l-2 border-academia-accent-gold/50 pl-4 py-2 my-2 rounded-r-md;
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .shadow-suggestion-content {
+    @apply text-academia-accent-goldBright/90 italic;
+  }
+
+  .writing-area {
+    @apply relative;
+  }
+
+  .writing-area::before {
+    content: '';
+    @apply absolute left-0 right-0 top-0 bottom-0 pointer-events-none;
+    @apply border border-academia-border-subtle/30 rounded-lg;
+    background: linear-gradient(
+      to bottom,
+      rgba(201, 162, 39, 0.02) 0%,
+      transparent 10%,
+      transparent 90%,
+      rgba(201, 162, 39, 0.02) 100%
+    );
+  }
+
+  .writing-area::after {
+    content: '';
+    @apply absolute left-8 right-8 top-4 pointer-events-none;
+    @apply border-t border-dashed border-academia-border-subtle/20;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+}
