@@ -44,7 +44,7 @@ export function ShadowSuggestion({ editor }: ShadowSuggestionProps) {
       className="shadow-suggestion my-4 animate-slide-up"
     >
       <div className="flex items-center gap-2 mb-2 text-sm text-academia-text-muted">
-        <Sparkles className="h-3.5 w-3.5 text-academia-accent-gold" />
+        <Sparkles className="h-3.5 w-3.5 text-academia-accent" />
         <span className="italic">"{shadowSuggestion.instruction}"</span>
       </div>
 

@@ -21,7 +21,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           'shrink-0 w-8 h-8 rounded-full flex items-center justify-center',
           isUser
             ? 'bg-academia-bg-elevated text-academia-text-secondary'
-            : 'bg-academia-accent-gold/20 text-academia-accent-gold'
+            : 'bg-academia-accent/20 text-academia-accent'
         )}
       >
         {isUser ? (

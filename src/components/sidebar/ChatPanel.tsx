@@ -55,7 +55,7 @@ export function ChatPanel() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <BookOpen className="h-12 w-12 text-academia-accent-gold/30 mb-4" />
+            <BookOpen className="h-12 w-12 text-academia-accent/30 mb-4" />
             <p className="text-academia-text-muted text-sm leading-relaxed">
               Ask me about your story, brainstorm ideas, or discuss your characters and plot.
             </p>
@@ -76,7 +76,7 @@ export function ChatPanel() {
             onClick={() => setIncludeContext(!includeContext)}
             className={`text-xs px-2 py-1 rounded-full border transition-colors ${
               includeContext
-                ? 'border-academia-accent-gold/50 bg-academia-accent-gold/10 text-academia-accent-gold'
+                ? 'border-academia-accent/50 bg-academia-accent/10 text-academia-accent'
                 : 'border-academia-border text-academia-text-muted'
             }`}
           >

@@ -1,14 +1,15 @@
+// src/components/ui/Button.tsx
 import { forwardRef, ButtonHTMLAttributes } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-academia-accent-gold focus-visible:ring-offset-2 focus-visible:ring-offset-academia-bg-primary disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-academia-accent focus-visible:ring-offset-2 focus-visible:ring-offset-academia-bg-primary disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
         default:
-          'bg-academia-accent-gold text-academia-bg-primary hover:bg-academia-accent-goldBright',
+          'bg-academia-accent text-white hover:bg-academia-accent-bright',
         secondary:
           'bg-academia-bg-tertiary text-academia-text-primary hover:bg-academia-bg-elevated border border-academia-border',
         ghost:
@@ -16,9 +17,9 @@ const buttonVariants = cva(
         outline:
           'border border-academia-border bg-transparent hover:bg-academia-bg-tertiary text-academia-text-primary',
         success:
-          'bg-academia-success text-academia-text-primary hover:bg-academia-success/90',
+          'bg-academia-success text-white hover:opacity-90',
         danger:
-          'bg-academia-error text-academia-text-primary hover:bg-academia-error/90',
+          'bg-academia-error text-white hover:opacity-90',
       },
       size: {
         default: 'h-10 px-4 py-2',

@@ -130,11 +130,15 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
             key={index}
             variant="ghost"
             size="icon"
-            onClick={tool.action}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation();
+              tool.action?.();
+            }}
             disabled={tool.disabled}
             className={cn(
               'h-8 w-8',
-              tool.isActive && 'bg-academia-bg-elevated text-academia-accent-gold'
+              tool.isActive && 'bg-academia-bg-elevated text-academia-accent'
             )}
             title={tool.label}
           >

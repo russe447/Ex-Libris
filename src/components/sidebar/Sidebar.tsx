@@ -1,8 +1,10 @@
+// src/components/Sidebar.tsx
 import { useState } from 'react';
 import { PanelRightClose, PanelRight, MessageSquare, FileText, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ChatPanel } from './ChatPanel';
 import { DocumentsPanel } from './DocumentsPanel';
+import { ThemeSelector } from '../settings/ThemeSelector';
 import { cn } from '@/lib/utils';
 
 type SidebarTab = 'chat' | 'documents' | 'settings';
@@ -38,7 +40,7 @@ export function Sidebar() {
               onClick={() => setActiveTab('chat')}
               className={cn(
                 'h-10 w-10',
-                activeTab === 'chat' && 'bg-academia-bg-tertiary text-academia-accent-gold'
+                activeTab === 'chat' && 'bg-academia-bg-tertiary text-academia-accent'
               )}
               title="Chat"
             >
@@ -51,7 +53,7 @@ export function Sidebar() {
               onClick={() => setActiveTab('documents')}
               className={cn(
                 'h-10 w-10',
-                activeTab === 'documents' && 'bg-academia-bg-tertiary text-academia-accent-gold'
+                activeTab === 'documents' && 'bg-academia-bg-tertiary text-academia-accent'
               )}
               title="Documents"
             >
@@ -66,7 +68,7 @@ export function Sidebar() {
               onClick={() => setActiveTab('settings')}
               className={cn(
                 'h-10 w-10',
-                activeTab === 'settings' && 'bg-academia-bg-tertiary text-academia-accent-gold'
+                activeTab === 'settings' && 'bg-academia-bg-tertiary text-academia-accent'
               )}
               title="Settings"
             >
@@ -90,13 +92,15 @@ export function Sidebar() {
             {activeTab === 'documents' && <DocumentsPanel />}
 
             {activeTab === 'settings' && (
-              <div className="p-4">
-                <h2 className="font-display text-lg text-academia-text-primary mb-4">
-                  Settings
-                </h2>
-                <p className="text-sm text-academia-text-muted">
-                  Settings panel coming soon...
-                </p>
+              <div className="h-full flex flex-col">
+                <div className="p-4 border-b border-academia-border">
+                  <h2 className="font-display text-lg text-academia-text-primary">
+                    Settings
+                  </h2>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4">
+                  <ThemeSelector />
+                </div>
               </div>
             )}
           </div>

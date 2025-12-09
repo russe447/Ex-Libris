@@ -45,7 +45,20 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
     setSelection(null);
   }, []);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: MouseEvent) => {
+    // Don't process if clicking on the trigger or menu
+    if (
+      triggerRef.current?.contains(e.target as Node) ||
+      menuRef.current?.contains(e.target as Node)
+    ) {
+      return;
+    }
+
+    // Don't process if menu is already open
+    if (showMenu) {
+      return;
+    }
+
     if (shadowSuggestion) {
       closeAll();
       return;
@@ -76,7 +89,7 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
         closeAll();
       }
     }, 10);
-  }, [editor, shadowSuggestion, closeAll]);
+  }, [editor, shadowSuggestion, closeAll, showMenu]);
 
   useEffect(() => {
     document.addEventListener('mouseup', handleMouseUp);
@@ -95,12 +108,15 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
     };
 
     if (showTrigger || showMenu) {
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         document.addEventListener('mousedown', handleClickOutside);
-      }, 0);
+      }, 50);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
     }
-    
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showTrigger, showMenu, closeAll]);
 
   useEffect(() => {
@@ -114,7 +130,9 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [closeAll]);
 
-  const handleTriggerClick = () => {
+  const handleTriggerClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setShowMenu(true);
     setShowTrigger(false);
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -148,12 +166,13 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
       {showTrigger && !showMenu && (
         <button
           ref={triggerRef}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={handleTriggerClick}
           className={cn(
             'fixed z-50 p-2 rounded-full',
-            'bg-academia-accent-gold/20 hover:bg-academia-accent-gold/30',
-            'border border-academia-accent-gold/50',
-            'text-academia-accent-gold',
+            'bg-academia-accent/20 hover:bg-academia-accent/30',
+            'border border-academia-accent/50',
+            'text-academia-accent',
             'transition-all duration-150',
             'shadow-lg hover:shadow-glow',
             'animate-fade-in'
@@ -179,10 +198,11 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
             top: Math.max(10, position.top),
             left: Math.max(10, Math.min(position.left, window.innerWidth - 420)),
           }}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-sm text-academia-text-secondary">
-              <Sparkles className="h-4 w-4 text-academia-accent-gold" />
+              <Sparkles className="h-4 w-4 text-academia-accent" />
               <span>Refine Selection</span>
             </div>
             <button
@@ -199,7 +219,7 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
                 key={action.label}
                 onClick={() => handleRefine(action.instruction)}
                 disabled={isRefining}
-                className="text-xs px-2 py-1 rounded bg-academia-bg-tertiary text-academia-text-secondary hover:text-academia-accent-gold hover:bg-academia-bg-primary border border-academia-border-subtle transition-colors disabled:opacity-50"
+                className="text-xs px-2 py-1 rounded bg-academia-bg-tertiary text-academia-text-secondary hover:text-academia-accent hover:bg-academia-bg-primary border border-academia-border-subtle transition-colors disabled:opacity-50"
               >
                 {action.label}
               </button>

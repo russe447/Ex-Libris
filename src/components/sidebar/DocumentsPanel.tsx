@@ -100,11 +100,9 @@ export function DocumentsPanel() {
     
     if (doc && trimmed !== doc.title) {
       try {
-        // If this is the active document, update it via the store (which will autosave)
         if (id === activeDocumentId) {
           setTitle(trimmed);
         } else {
-          // For non-active documents, we need to fetch the full document, update it, and save
           const { fetchDocument, updateDocument } = await import('@/services/documents');
           const fullDoc = await fetchDocument(id);
           await updateDocument(id, {
@@ -112,7 +110,6 @@ export function DocumentsPanel() {
             content: fullDoc.content,
             wordCount: fullDoc.wordCount,
           });
-          // Refresh the document list to show the updated title
           await fetchDocuments();
         }
       } catch (error) {
@@ -212,7 +209,7 @@ export function DocumentsPanel() {
                 className={cn(
                   'w-full text-left p-3 rounded-lg transition-colors group',
                   'hover:bg-academia-bg-tertiary',
-                  activeDocumentId === doc.id && 'bg-academia-bg-tertiary border border-academia-accent-gold/30'
+                  activeDocumentId === doc.id && 'bg-academia-bg-tertiary border border-academia-accent/30'
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -254,7 +251,7 @@ export function DocumentsPanel() {
                         <h3 className={cn(
                           'font-medium text-sm truncate flex-1',
                           activeDocumentId === doc.id 
-                            ? 'text-academia-accent-gold' 
+                            ? 'text-academia-accent' 
                             : 'text-academia-text-primary'
                         )}>
                           {doc.title || 'Untitled'}
@@ -263,7 +260,7 @@ export function DocumentsPanel() {
                           onClick={(e) => handleStartEdit(e, doc)}
                           className={cn(
                             'p-1 rounded opacity-0 group-hover/title:opacity-100 transition-opacity',
-                            'hover:bg-academia-bg-elevated text-academia-text-muted hover:text-academia-accent-gold'
+                            'hover:bg-academia-bg-elevated text-academia-text-muted hover:text-academia-accent'
                           )}
                           title="Rename"
                         >
@@ -306,4 +303,3 @@ export function DocumentsPanel() {
     </div>
   );
 }
-

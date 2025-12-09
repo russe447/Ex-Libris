@@ -1,12 +1,15 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Editor } from '@/components/editor/Editor';
 import { Sidebar } from '@/components/sidebar/Sidebar';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
 
 function App() {
   return (
-    <AppLayout sidebar={<Sidebar />}>
-      <Editor />
-    </AppLayout>
+    <ThemeProvider>
+      <AppLayout sidebar={<Sidebar />}>
+        <Editor />
+      </AppLayout>
+    </ThemeProvider>
   );
 }
 
