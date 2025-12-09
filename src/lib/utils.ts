@@ -5,32 +5,63 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Generate a cryptographically secure random ID.
+ * Falls back to Math.random if crypto API is unavailable.
+ */
 export function generateId(): string {
-  return Math.random().toString(36).substring(2, 15);
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  
+  // Fallback for environments without crypto.randomUUID
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  
+  // Last resort fallback (less secure, but functional)
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 15);
 }
 
+/**
+ * Count words in text, stripping HTML tags.
+ */
 export function countWords(text: string): number {
+  if (!text) return 0;
+  
   const strippedText = text.replace(/<[^>]*>/g, ' ');
-  return strippedText
-    .trim()
-    .split(/\s+/)
-    .filter(word => word.length > 0).length;
+  const words = strippedText.trim().split(/\s+/);
+  
+  return words.filter(word => word.length > 0).length;
 }
 
+/**
+ * Extract preceding context from text for AI refinement.
+ */
 export function extractPrecedingContext(
   fullText: string,
   selectionStart: number,
   charLimit: number = 1500
 ): string {
+  if (!fullText || selectionStart <= 0) return '';
+  
   const startIndex = Math.max(0, selectionStart - charLimit);
   return fullText.substring(startIndex, selectionStart);
 }
 
+/**
+ * Create a debounced version of a function.
+ */
 export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: ReturnType<typeof setTimeout> | null = null;
+  
   return (...args: Parameters<T>) => {
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);

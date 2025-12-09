@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ShadowSuggestion, Document } from '@/types';
+import { ShadowSuggestion } from '@/types';
 import { generateId, countWords } from '@/lib/utils';
 import * as documentsService from '@/services/documents';
 import { DocumentMetadata } from '@/services/documents';
@@ -38,7 +38,32 @@ interface DocumentState {
 }
 
 const AUTOSAVE_DELAY = 2000; // 2 seconds
+const LOCAL_STORAGE_KEY = 'exlibris_active_document';
+
 let autosaveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Schedule an autosave operation with debouncing.
+ * Clears any pending autosave and schedules a new one.
+ */
+function scheduleAutosave(saveDocument: () => Promise<void>): void {
+  if (autosaveTimeout) {
+    clearTimeout(autosaveTimeout);
+  }
+  autosaveTimeout = setTimeout(() => {
+    saveDocument();
+  }, AUTOSAVE_DELAY);
+}
+
+/**
+ * Cancel any pending autosave operation.
+ */
+function cancelPendingAutosave(): void {
+  if (autosaveTimeout) {
+    clearTimeout(autosaveTimeout);
+    autosaveTimeout = null;
+  }
+}
 
 export const useDocumentStore = create<DocumentState>((set, get) => ({
   // Current document state
@@ -64,35 +89,22 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       hasUnsavedChanges: true,
     });
     
-    // Trigger autosave
     const { activeDocumentId, saveDocument } = get();
     if (activeDocumentId) {
-      if (autosaveTimeout) {
-        clearTimeout(autosaveTimeout);
-      }
-      autosaveTimeout = setTimeout(() => {
-        saveDocument();
-      }, AUTOSAVE_DELAY);
+      scheduleAutosave(saveDocument);
     }
   },
 
   setTitle: (title) => {
     set({ title, hasUnsavedChanges: true });
     
-    // Trigger autosave
     const { activeDocumentId, saveDocument } = get();
     if (activeDocumentId) {
-      if (autosaveTimeout) {
-        clearTimeout(autosaveTimeout);
-      }
-      autosaveTimeout = setTimeout(() => {
-        saveDocument();
-      }, AUTOSAVE_DELAY);
+      scheduleAutosave(saveDocument);
     }
   },
 
-  setShadowSuggestion: (suggestion) =>
-    set({ shadowSuggestion: suggestion }),
+  setShadowSuggestion: (suggestion) => set({ shadowSuggestion: suggestion }),
 
   acceptSuggestion: () => {
     const { shadowSuggestion } = get();
@@ -105,17 +117,13 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     };
 
     set({ shadowSuggestion: null });
-
     return result;
   },
 
-  rejectSuggestion: () =>
-    set({ shadowSuggestion: null }),
+  rejectSuggestion: () => set({ shadowSuggestion: null }),
 
-  setIsRefining: (isRefining) =>
-    set({ isRefining }),
+  setIsRefining: (isRefining) => set({ isRefining }),
 
-  // Document management actions
   fetchDocuments: async () => {
     set({ isLoadingDocuments: true });
     try {
@@ -129,11 +137,12 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   createNewDocument: async () => {
     const id = generateId();
-    const { saveDocument: currentSave, activeDocumentId, hasUnsavedChanges } = get();
+    const { saveDocument, activeDocumentId, hasUnsavedChanges } = get();
     
     // Save current document first if there are unsaved changes
     if (activeDocumentId && hasUnsavedChanges) {
-      await currentSave();
+      cancelPendingAutosave();
+      await saveDocument();
     }
     
     try {
@@ -153,11 +162,9 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         lastSaved: new Date(),
       });
       
-      // Refresh document list
       await get().fetchDocuments();
       
-      // Store active document ID in localStorage for persistence
-      localStorage.setItem('exlibris_active_document', id);
+      localStorage.setItem(LOCAL_STORAGE_KEY, id);
       
       return id;
     } catch (error) {
@@ -167,11 +174,12 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   },
 
   loadDocument: async (id: string) => {
-    const { saveDocument: currentSave, activeDocumentId, hasUnsavedChanges } = get();
+    const { saveDocument, activeDocumentId, hasUnsavedChanges } = get();
     
     // Save current document first if there are unsaved changes
     if (activeDocumentId && hasUnsavedChanges) {
-      await currentSave();
+      cancelPendingAutosave();
+      await saveDocument();
     }
     
     try {
@@ -186,8 +194,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         lastSaved: document.lastModified,
       });
       
-      // Store active document ID in localStorage for persistence
-      localStorage.setItem('exlibris_active_document', id);
+      localStorage.setItem(LOCAL_STORAGE_KEY, id);
     } catch (error) {
       console.error('Failed to load document:', error);
       throw error;
@@ -214,8 +221,20 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         hasUnsavedChanges: false,
       });
       
-      // Refresh document list to update metadata
-      await get().fetchDocuments();
+      // Update the local documents list without a full refetch
+      // This is more efficient than fetching all documents again
+      set((state) => ({
+        documents: state.documents.map((doc) =>
+          doc.id === activeDocumentId
+            ? {
+                ...doc,
+                title,
+                wordCount,
+                lastModified: new Date().toISOString(),
+              }
+            : doc
+        ),
+      }));
     } catch (error) {
       console.error('Failed to save document:', error);
       set({ isSaving: false });
@@ -224,7 +243,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   },
 
   deleteDocument: async (id: string) => {
-    const { activeDocumentId, clearActiveDocument, fetchDocuments } = get();
+    const { activeDocumentId, clearActiveDocument } = get();
     
     try {
       await documentsService.deleteDocument(id);
@@ -234,8 +253,10 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         clearActiveDocument();
       }
       
-      // Refresh document list
-      await fetchDocuments();
+      // Update documents list locally instead of refetching
+      set((state) => ({
+        documents: state.documents.filter((doc) => doc.id !== id),
+      }));
     } catch (error) {
       console.error('Failed to delete document:', error);
       throw error;
@@ -243,7 +264,8 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   },
 
   clearActiveDocument: () => {
-    localStorage.removeItem('exlibris_active_document');
+    cancelPendingAutosave();
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
     set({
       activeDocumentId: null,
       title: 'Untitled',

@@ -103,9 +103,10 @@ export function DocumentsPanel() {
         if (id === activeDocumentId) {
           setTitle(trimmed);
         } else {
-          const { fetchDocument, updateDocument } = await import('@/services/documents');
-          const fullDoc = await fetchDocument(id);
-          await updateDocument(id, {
+          // Dynamically import to avoid circular dependencies
+          const documentsService = await import('@/services/documents');
+          const fullDoc = await documentsService.fetchDocument(id);
+          await documentsService.updateDocument(id, {
             title: trimmed,
             content: fullDoc.content,
             wordCount: fullDoc.wordCount,

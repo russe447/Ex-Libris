@@ -1,5 +1,4 @@
-// src/components/theme/ThemeProvider.tsx
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useThemeStore } from '@/stores/themeStore';
 
 // Google Fonts URL with all theme fonts
@@ -7,14 +6,14 @@ const GOOGLE_FONTS_URL =
   'https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Fira+Code:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Literata:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Special+Elite&display=swap';
 
 interface ThemeProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const { theme } = useThemeStore();
 
+  // Load fonts once on mount
   useEffect(() => {
-    // Load all fonts
     const existingLink = document.querySelector('link[data-theme-fonts]');
     if (!existingLink) {
       const link = document.createElement('link');
@@ -25,6 +24,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, []);
 
+  // Apply theme CSS variables whenever theme changes
   useEffect(() => {
     const root = document.documentElement;
     
@@ -67,4 +67,3 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   return <>{children}</>;
 }
-

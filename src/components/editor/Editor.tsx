@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -54,28 +54,29 @@ export function Editor() {
       saveTimeoutRef.current = setTimeout(() => {
         const html = editor.getHTML();
         setContent(html);
-      }, 300); // Reduced delay for more responsive feel, autosave handles the actual save
+      }, 300);
     },
   });
 
+  // Memoize the initialization function to avoid unnecessary recreations
+  const initializeDocument = useCallback(async () => {
+    await fetchDocuments();
+    
+    const savedDocumentId = localStorage.getItem('exlibris_active_document');
+    if (savedDocumentId) {
+      try {
+        await loadDocument(savedDocumentId);
+      } catch {
+        // Document might have been deleted, clear the reference
+        localStorage.removeItem('exlibris_active_document');
+      }
+    }
+  }, [fetchDocuments, loadDocument]);
+
   // Load the last active document on mount
   useEffect(() => {
-    const initializeDocument = async () => {
-      await fetchDocuments();
-      
-      const savedDocumentId = localStorage.getItem('exlibris_active_document');
-      if (savedDocumentId) {
-        try {
-          await loadDocument(savedDocumentId);
-        } catch (error) {
-          // Document might have been deleted, clear the reference
-          localStorage.removeItem('exlibris_active_document');
-        }
-      }
-    };
-    
     initializeDocument();
-  }, []);
+  }, [initializeDocument]);
 
   // Sync editor content when document content changes (e.g., when loading a document)
   useEffect(() => {
@@ -89,6 +90,7 @@ export function Editor() {
     }
   }, [editor, content, activeDocumentId]);
 
+  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {

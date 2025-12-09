@@ -12,7 +12,7 @@ interface ChatState {
   clearMessages: () => void;
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   isLoading: false,
 
@@ -33,15 +33,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => {
       const messages = [...state.messages];
       const lastIndex = messages.length - 1;
+      
       if (lastIndex >= 0 && messages[lastIndex].role === 'assistant') {
         messages[lastIndex] = { ...messages[lastIndex], content };
       }
+      
       return { messages };
     }),
 
-  setIsLoading: (isLoading) =>
-    set({ isLoading }),
+  setIsLoading: (isLoading) => set({ isLoading }),
 
-  clearMessages: () =>
-    set({ messages: [] }),
+  clearMessages: () => set({ messages: [] }),
 }));
