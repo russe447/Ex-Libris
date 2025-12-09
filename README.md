@@ -6,7 +6,7 @@ A distraction-free, AI-powered writing application designed for novelists and cr
 
 ### ✍️ Rich Text Editor
 - **TipTap-powered editor** with full formatting capabilities
-- **Dark Academia aesthetic** with carefully crafted typography and color palette
+- **Multiple aesthetic themes** with carefully crafted typography and color palettes
 - **Distraction-free interface** focused on your writing
 - Support for headings, bold, italic, underline, text alignment, and more
 - Real-time word count tracking
@@ -24,8 +24,9 @@ A distraction-free, AI-powered writing application designed for novelists and cr
 - **Conversation History**: Maintain context across multiple exchanges
 
 ### 🎨 Beautiful Design
-- **Dark Academia Theme**: Elegant color palette inspired by classic literature
-- **Custom Typography**: Serif fonts (Cormorant Garamond, Cinzel) for a literary feel
+- **Multiple Color Themes**: Choose from a variety of carefully crafted themes including Dark Academia, Sepia Manuscript, Midnight Writer, and more
+- **Quick Theme Switcher**: Easily switch themes from the header with live preview of color swatches
+- **Custom Typography**: Theme-specific fonts for a unique literary feel per theme
 - **Smooth Animations**: Polished UI transitions and interactions
 - **Responsive Layout**: Adapts beautifully to different screen sizes
 
@@ -33,7 +34,7 @@ A distraction-free, AI-powered writing application designed for novelists and cr
 
 - **Frontend**: React 18 + TypeScript + Vite
 - **Editor**: TipTap (ProseMirror-based)
-- **Styling**: Tailwind CSS with custom Dark Academia theme
+- **Styling**: Tailwind CSS with dynamic theming system
 - **State Management**: Zustand with Immer
 - **UI Components**: Radix UI primitives
 - **Backend**: Express.js
@@ -51,7 +52,7 @@ A distraction-free, AI-powered writing application designed for novelists and cr
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd B/ex-libris
+   cd ex-libris
    ```
 
 2. **Install dependencies**
@@ -94,22 +95,24 @@ A distraction-free, AI-powered writing application designed for novelists and cr
 ## Project Structure
 
 ```
-B/ex-libris/
+ex-libris/
 ├── src/
 │   ├── components/          # React components
-│   │   ├── editor/          # Editor components (Editor, Toolbar, etc.)
-│   │   ├── layout/          # Layout components
-│   │   ├── sidebar/         # Sidebar components (Chat, etc.)
-│   │   └── ui/              # Reusable UI components
+│   │   ├── editor/          # Editor components (Editor, Toolbar, FloatingRefineMenu, etc.)
+│   │   ├── layout/          # Layout components (AppLayout)
+│   │   ├── settings/        # Settings components (ThemeSelector)
+│   │   ├── sidebar/         # Sidebar components (Chat, Documents panels)
+│   │   ├── theme/           # Theme components (ThemeProvider, QuickThemeSwitcher)
+│   │   └── ui/              # Reusable UI components (Button, Input, Textarea)
 │   ├── hooks/               # Custom React hooks
-│   ├── lib/                 # Utility functions
+│   ├── lib/                 # Utility functions and theme definitions
 │   ├── services/            # API service functions
-│   ├── stores/              # Zustand state stores
-│   ├── styles/             # Global styles
-│   └── types/              # TypeScript type definitions
+│   ├── stores/              # Zustand state stores (document, chat, theme)
+│   └── types/               # TypeScript type definitions
 ├── server/                  # Express backend
-│   └── index.js            # API server entry point
-├── public/                 # Static assets
+│   ├── index.js             # API server entry point
+│   └── database.js          # SQLite database configuration
+├── public/                  # Static assets
 └── package.json
 ```
 
@@ -144,9 +147,26 @@ The backend provides three main endpoints:
 
 ## Configuration
 
-### Customizing the Theme
+### Choosing a Theme
 
-The Dark Academia theme is defined in `tailwind.config.js`. You can modify colors, fonts, and other design tokens there.
+Ex Libris comes with multiple built-in themes. Click the palette icon in the header to switch between them:
+
+- **Dark Academia** - Elegant dark tones inspired by classic literature
+- **Sepia Manuscript** - Warm, aged paper aesthetic
+- **Midnight Writer** - Deep blues for late-night writing sessions
+- **Forest Study** - Earthy greens for a natural feel
+- **Vintage Typewriter** - Classic monochrome typewriter aesthetic
+- And more...
+
+Your theme preference is automatically saved and persists across sessions.
+
+### Customizing Themes
+
+Theme definitions are located in `src/lib/themes.ts`. Each theme includes:
+- Color palette (backgrounds, text, accents, borders)
+- Typography (display, serif, and monospace fonts)
+
+The base Tailwind configuration in `tailwind.config.js` uses CSS variables that are dynamically updated by the ThemeProvider.
 
 ### AI Model
 
