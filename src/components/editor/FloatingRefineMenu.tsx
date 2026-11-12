@@ -1,10 +1,14 @@
+// src/components/editor/FloatingRefineMenu.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Editor } from '@tiptap/react';
 import { Sparkles, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useRefine } from '@/hooks/useAnthropic';
-import { useDocumentStore } from '@/stores/documentStore';
+import { useEditorStore } from '@/stores/editorStore';
+import { describeAiFailure } from '@/lib/aiErrors';
+import { TIER_ORDER, type AiTier } from '@/services/settings';
+import { useRouteStore } from '@/stores/routeStore';
 import { cn } from '@/lib/utils';
 
 interface FloatingRefineMenuProps {
@@ -29,7 +33,11 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { refine } = useRefine();
-  const { isRefining, shadowSuggestion } = useDocumentStore();
+  const { isRefining, shadowSuggestion } = useEditorStore();
+  const [refineError, setRefineError] = useState<string | null>(null);
+  // 'auto' defers to the router, which sends short selections to Quick.
+  const [tier, setTier] = useState<'auto' | AiTier>('auto');
+  const lastRefineRoute = useRouteStore((state) => state.lastRefine);
 
   const quickActions = [
     { label: 'More detail', instruction: 'Add more sensory details and vivid description' },
@@ -133,6 +141,7 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
   const handleTriggerClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setRefineError(null);
     setShowMenu(true);
     setShowTrigger(false);
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -140,15 +149,25 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
 
   const handleRefine = async (customInstruction?: string) => {
     if (!selection) return;
-    
+
     const finalInstruction = customInstruction || instruction;
     if (!finalInstruction.trim()) return;
 
+    setRefineError(null);
     try {
-      await refine(selection.text, finalInstruction, selection.from, selection.to);
+      await refine(
+        selection.text,
+        finalInstruction,
+        selection.from,
+        selection.to,
+        tier === 'auto' ? undefined : tier
+      );
       closeAll();
     } catch (error) {
       console.error('Failed to refine:', error);
+      // Previously this failed silently: the spinner stopped and nothing
+      // happened, which looks identical to "the AI had no suggestion".
+      setRefineError(describeAiFailure(error));
     }
   };
 
@@ -249,6 +268,42 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
               )}
             </Button>
           </div>
+
+          <div className="flex items-center gap-1 mt-2">
+            <span className="text-[10px] text-academia-text-muted mr-1">Model:</span>
+            {(['auto', ...TIER_ORDER] as const).map((option) => (
+              <button
+                key={option}
+                onClick={() => setTier(option)}
+                disabled={isRefining}
+                className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded-full border capitalize transition-colors disabled:opacity-50',
+                  option === tier
+                    ? 'border-academia-accent/50 bg-academia-accent/10 text-academia-accent'
+                    : 'border-academia-border-subtle text-academia-text-muted hover:text-academia-text-primary'
+                )}
+                title={
+                  option === 'auto'
+                    ? 'Let the router choose from the selection length'
+                    : `Force the ${option} tier`
+                }
+              >
+                {option}
+              </button>
+            ))}
+            {lastRefineRoute && (
+              <span
+                className="ml-auto text-[10px] text-academia-text-muted truncate max-w-[140px]"
+                title={`Last refine: ${lastRefineRoute.tier} — ${lastRefineRoute.reason}`}
+              >
+                last: {lastRefineRoute.model}
+              </span>
+            )}
+          </div>
+
+          {refineError && (
+            <p className="mt-3 text-xs text-academia-error leading-relaxed">{refineError}</p>
+          )}
 
           {selection && (
             <div className="mt-3 pt-3 border-t border-academia-border-subtle">

@@ -1,17 +1,30 @@
-// src/components/Sidebar.tsx
-import { useState } from 'react';
-import { PanelRightClose, PanelRight, MessageSquare, FileText, Settings } from 'lucide-react';
+// src/components/sidebar/Sidebar.tsx
+import {
+  PanelRightClose,
+  PanelRight,
+  MessageSquare,
+  Library,
+  Settings,
+  BookMarked,
+  Search,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ChatPanel } from './ChatPanel';
-import { DocumentsPanel } from './DocumentsPanel';
-import { ThemeSelector } from '../settings/ThemeSelector';
+import { LibraryPanel } from './LibraryPanel';
+import { CodexPanel } from './CodexPanel';
+import { SearchPanel } from './SearchPanel';
+import { SettingsPanel } from '../settings/SettingsPanel';
+import { useWorkspaceStore, type SidebarTab } from '@/stores/workspaceStore';
 import { cn } from '@/lib/utils';
 
-type SidebarTab = 'chat' | 'documents' | 'settings';
-
 export function Sidebar() {
-  const [isOpen, setIsOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<SidebarTab>('chat');
+  // Open/closed lives in the workspace store so it survives a reload — and so
+  // Focus view can hide the sidebar without forgetting your preference.
+  const isOpen = useWorkspaceStore((state) => state.isSidebarOpen);
+  const setIsOpen = useWorkspaceStore((state) => state.setSidebarOpen);
+  // The tab lives in the store too, so Ctrl+F can open Search directly.
+  const activeTab: SidebarTab = useWorkspaceStore((state) => state.sidebarTab);
+  const setActiveTab = useWorkspaceStore((state) => state.setSidebarTab);
 
   return (
     <>
@@ -46,18 +59,44 @@ export function Sidebar() {
             >
               <MessageSquare className="h-5 w-5" />
             </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setActiveTab('codex')}
+              className={cn(
+                'h-10 w-10',
+                activeTab === 'codex' && 'bg-academia-bg-tertiary text-academia-accent'
+              )}
+              title="Codex"
+            >
+              <BookMarked className="h-5 w-5" />
+            </Button>
             
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setActiveTab('documents')}
+              onClick={() => setActiveTab('search')}
               className={cn(
                 'h-10 w-10',
-                activeTab === 'documents' && 'bg-academia-bg-tertiary text-academia-accent'
+                activeTab === 'search' && 'bg-academia-bg-tertiary text-academia-accent'
               )}
-              title="Documents"
+              title="Search this novel (Ctrl/Cmd+F)"
             >
-              <FileText className="h-5 w-5" />
+              <Search className="h-5 w-5" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setActiveTab('library')}
+              className={cn(
+                'h-10 w-10',
+                activeTab === 'library' && 'bg-academia-bg-tertiary text-academia-accent'
+              )}
+              title="Library"
+            >
+              <Library className="h-5 w-5" />
             </Button>
 
             <div className="flex-1" />
@@ -88,21 +127,14 @@ export function Sidebar() {
 
           <div className="flex-1 overflow-hidden">
             {activeTab === 'chat' && <ChatPanel />}
-            
-            {activeTab === 'documents' && <DocumentsPanel />}
 
-            {activeTab === 'settings' && (
-              <div className="h-full flex flex-col">
-                <div className="p-4 border-b border-academia-border">
-                  <h2 className="font-display text-lg text-academia-text-primary">
-                    Settings
-                  </h2>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4">
-                  <ThemeSelector />
-                </div>
-              </div>
-            )}
+            {activeTab === 'codex' && <CodexPanel />}
+            
+            {activeTab === 'search' && <SearchPanel />}
+
+            {activeTab === 'library' && <LibraryPanel />}
+
+            {activeTab === 'settings' && <SettingsPanel />}
           </div>
         </div>
       </aside>

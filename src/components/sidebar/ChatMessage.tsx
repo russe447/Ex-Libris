@@ -1,3 +1,4 @@
+// src/components/sidebar/ChatMessage.tsx
 import { User, Sparkles } from 'lucide-react';
 import { ChatMessage as ChatMessageType } from '@/types';
 import { cn } from '@/lib/utils';

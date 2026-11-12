@@ -1,3 +1,4 @@
+// src/components/theme/ThemeProvider.tsx
 import { useEffect, type ReactNode } from 'react';
 import { useThemeStore } from '@/stores/themeStore';
 

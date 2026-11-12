@@ -1,4 +1,4 @@
-# Logs
+# .gitignore
 logs
 *.log
 npm-debug.log*
@@ -32,8 +32,16 @@ dist-ssr
 *.sw?
 
 # Build outputs
-build
+release/
 *.tsbuildinfo
 server/*.db
 server/*.db-shm
 server/*.db-wal
+
+# AES key that encrypts stored API keys. Lives in the app data directory
+# now (see server/paths.js); these patterns also cover stale repo copies.
+server/.secret
+.secret
+*.db
+*.db-wal
+*.db-shm

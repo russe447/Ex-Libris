@@ -1,3 +1,4 @@
+// src/components/editor/EditorToolbar.tsx
 import { Editor } from '@tiptap/react';
 import {
   Bold,
@@ -12,8 +13,10 @@ import {
   Minus,
   Undo,
   Redo,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { SnapshotsDialog } from './SnapshotsDialog';
 import { cn } from '@/lib/utils';
 
 interface EditorToolbarProps {
@@ -146,6 +149,19 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
           </Button>
         );
       })}
+      {/* Right-aligned: chapter-level tools rather than text formatting. */}
+      <div className="ml-auto flex items-center gap-1">
+        <SnapshotsDialog>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="Snapshots — saved versions of this chapter"
+          >
+            <History className="h-4 w-4" />
+          </Button>
+        </SnapshotsDialog>
+      </div>
     </div>
   );
 }

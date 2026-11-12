@@ -1,121 +1,124 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
+import { BookOpen } from 'lucide-react';
 import { EditorToolbar } from './EditorToolbar';
 import { FloatingRefineMenu } from './FloatingRefineMenu';
 import { ShadowSuggestion } from './ShadowSuggestion';
-import { useDocumentStore } from '@/stores/documentStore';
-
-export function Editor() {
-  const { 
-    content,
-    setContent, 
-    shadowSuggestion,
-    activeDocumentId,
-    loadDocument,
-    fetchDocuments,
-  } = useDocumentStore();
-  
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isLoadingContent = useRef(false);
-
+import { useEditorStore } from '@/stores/editorStore';
+import { useLibraryStore } from '@/stores/libraryStore';
+import { useSearchStore } from '@/stores/searchStore';
+import { onUiCommand } from '@/lib/uiBus';
+import { SearchHighlight, findMatchRange, searchHighlightKey } from './searchHighlight';
+/**
+ * One TipTap instance per chapter. The parent keys this on `chapterId`, so a
+ * chapter switch destroys and recreates it — which is the only reliable way to
+ * drop ProseMirror's undo history. Previously you could Ctrl+Z backwards into
+ * the previous document's prose.
+ *
+ * It reads `content` once, imperatively. Subscribing would re-render TipTap on
+ * every keystroke.
+ */
+function ChapterEditor() {
+  const shadowSuggestion = useEditorStore((state) => state.shadowSuggestion);
+  const setContent = useEditorStore((state) => state.setContent);
+  const initialContent = useEditorStore.getState().content;
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3],
-        },
-      }),
-      Placeholder.configure({
-        placeholder: 'Begin your story...',
-      }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      Placeholder.configure({ placeholder: 'Begin your chapter…' }),
       Underline,
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-      }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      SearchHighlight,
     ],
-    content: '',
-    editorProps: {
-      attributes: {
-        class: 'tiptap-editor prose-academia focus:outline-none',
-      },
-    },
-    onUpdate: ({ editor }) => {
-      // Don't trigger save when we're loading content
-      if (isLoadingContent.current) return;
-      
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      
-      saveTimeoutRef.current = setTimeout(() => {
-        const html = editor.getHTML();
-        setContent(html);
-      }, 300);
-    },
+    content: initialContent,
+    editorProps: { attributes: { class: 'tiptap-editor prose-academia focus:outline-none' } },
+    // Synchronous. The store debounces the network save, so the buffer is never
+    // newer than what flush() can persist before a chapter switch.
+    onUpdate: ({ editor: instance }) => setContent(instance.getHTML()),
   });
-
-  // Memoize the initialization function to avoid unnecessary recreations
-  const initializeDocument = useCallback(async () => {
-    await fetchDocuments();
-    
-    const savedDocumentId = localStorage.getItem('exlibris_active_document');
-    if (savedDocumentId) {
-      try {
-        await loadDocument(savedDocumentId);
-      } catch {
-        // Document might have been deleted, clear the reference
-        localStorage.removeItem('exlibris_active_document');
-      }
-    }
-  }, [fetchDocuments, loadDocument]);
-
-  // Load the last active document on mount
+  // Desktop menu Edit ▸ Undo/Redo. ProseMirror keeps its own history, so the
+  // native role would miss; these reach TipTap's stack directly.
   useEffect(() => {
-    initializeDocument();
-  }, [initializeDocument]);
-
-  // Sync editor content when document content changes (e.g., when loading a document)
-  useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      isLoadingContent.current = true;
-      editor.commands.setContent(content);
-      // Use requestAnimationFrame to ensure the flag is reset after the update cycle
-      requestAnimationFrame(() => {
-        isLoadingContent.current = false;
-      });
-    }
-  }, [editor, content, activeDocumentId]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
+    if (!editor) return;
+    const offUndo = onUiCommand('editor-undo', () => editor.chain().focus().undo().run());
+    const offRedo = onUiCommand('editor-redo', () => editor.chain().focus().redo().run());
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
+      offUndo();
+      offRedo();
     };
-  }, []);
+  }, [editor]);
+  // A search hit that landed on this chapter: select it, scroll to it, and
+  // leave a fading highlight so the eye can find it on a dense page.
+  const pendingJump = useSearchStore((state) => state.pendingJump);
+  const consumeJump = useSearchStore((state) => state.consumeJump);
+  const chapterId = useEditorStore((state) => state.chapterId);
+
+  useEffect(() => {
+    if (!editor || !pendingJump || pendingJump.chapterId !== chapterId) return;
+
+    const range = findMatchRange(editor.state.doc, pendingJump.query, pendingJump.occurrence, pendingJump.options);
+    consumeJump();
+    if (!range) return;
+
+    editor.chain().focus().setTextSelection(range).run();
+    editor.view.dispatch(editor.state.tr.setMeta(searchHighlightKey, range));
+
+    const dom = editor.view.domAtPos(range.from).node;
+    const element = dom instanceof HTMLElement ? dom : dom.parentElement;
+    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const timeout = setTimeout(() => {
+      if (editor.isDestroyed) return;
+      editor.view.dispatch(editor.state.tr.setMeta(searchHighlightKey, null));
+    }, 2600);
+    return () => clearTimeout(timeout);
+  }, [editor, pendingJump, chapterId, consumeJump]);
 
   return (
-    <div className="flex flex-col h-full">
+    <>
       <EditorToolbar editor={editor} />
-      
       <div className="flex-1 overflow-y-auto bg-academia-bg-secondary rounded-b-lg border border-t-0 border-academia-border">
         <div className="max-w-3xl mx-auto px-8 py-6">
           <div className="writing-area min-h-[calc(100vh-16rem)] px-8 py-8">
             <EditorContent editor={editor} />
-            
-            {editor && shadowSuggestion && (
-              <ShadowSuggestion editor={editor} />
-            )}
+            {editor && shadowSuggestion && <ShadowSuggestion editor={editor} />}
           </div>
         </div>
       </div>
-
       {editor && <FloatingRefineMenu editor={editor} />}
+    </>
+  );
+}
+export function Editor() {
+  const chapterId = useEditorStore((state) => state.chapterId);
+  // Part of the mount key: a snapshot restore replaces the buffer and bumps
+  // this, remounting TipTap exactly like a chapter switch (fresh undo stack).
+  const loadVersion = useEditorStore((state) => state.loadVersion);
+  const isLoadingChapter = useEditorStore((state) => state.isLoadingChapter);
+  const activeNovelId = useLibraryStore((state) => state.activeNovelId);
+  // Previously the editor was always writable. With no active document, every
+  // keystroke went into a store that had nothing to save it to.
+  if (!chapterId) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center text-center px-8 bg-academia-bg-secondary rounded-lg border border-academia-border">
+        <BookOpen className="h-12 w-12 text-academia-accent/30 mb-4" />
+        <p className="text-academia-text-muted text-sm max-w-sm leading-relaxed">
+          {isLoadingChapter
+            ? 'Opening chapter…'
+            : activeNovelId
+              ? 'Select a chapter from the Library, or create one to start writing.'
+              : 'Open a novel from the Library, or create your first one.'}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col h-full">
+      <ChapterEditor key={`${chapterId}:${loadVersion}`} />
     </div>
   );
 }

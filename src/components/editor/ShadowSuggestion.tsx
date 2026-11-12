@@ -1,15 +1,16 @@
+// src/components/editor/ShadowSuggestion.tsx
 import { useEffect, useRef } from 'react';
 import { Editor } from '@tiptap/react';
 import { Check, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useDocumentStore } from '@/stores/documentStore';
+import { useEditorStore } from '@/stores/editorStore';
 
 interface ShadowSuggestionProps {
   editor: Editor;
 }
 
 export function ShadowSuggestion({ editor }: ShadowSuggestionProps) {
-  const { shadowSuggestion, acceptSuggestion, rejectSuggestion } = useDocumentStore();
+  const { shadowSuggestion, acceptSuggestion, rejectSuggestion } = useEditorStore();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
