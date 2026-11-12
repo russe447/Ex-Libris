@@ -38,6 +38,9 @@ server/*.db
 server/*.db-shm
 server/*.db-wal
 
+# Local agent trajectory log (not source)
+trajectory.md
+
 # AES key that encrypts stored API keys. Lives in the app data directory
 # now (see server/paths.js); these patterns also cover stale repo copies.
 server/.secret
