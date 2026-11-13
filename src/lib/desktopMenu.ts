@@ -15,6 +15,7 @@ import { useLibraryStore } from '@/stores/libraryStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useSnapshotStore } from '@/stores/snapshotStore';
+import { openReferencePane } from '@/lib/splitEditor';
 import { themes, themeOrder } from '@/lib/themes';
 import { emitUiCommand } from '@/lib/uiBus';
 
@@ -91,6 +92,18 @@ function handleMenuAction(action: string): void {
     case 'view:focus':
       workspace.setView('focus');
       return;
+    case 'view:corkboard':
+      workspace.setView('corkboard');
+      return;
+    case 'view:toggle-split':
+      if (workspace.isSplitOpen) {
+        workspace.closeSplit();
+      } else {
+        // The pane lives beside the editor; make sure an editor is on screen.
+        if (workspace.view !== 'write' && workspace.view !== 'focus') workspace.setView('write');
+        openReferencePane();
+      }
+      return;
     case 'view:toggle-sidebar':
       workspace.toggleSidebar();
       return;
@@ -141,7 +154,7 @@ function pushMenuState(): void {
   const bridge = window.exlibrisDesktop;
   if (!bridge?.updateMenuState) return;
 
-  const { view, isSidebarOpen } = useWorkspaceStore.getState();
+  const { view, isSidebarOpen, isSplitOpen } = useWorkspaceStore.getState();
   const { activeNovelId, chapters, activeChapterId, isMutating } = useLibraryStore.getState();
   const index = activeChapterId
     ? chapters.findIndex((chapter) => chapter.id === activeChapterId)
@@ -159,6 +172,7 @@ function pushMenuState(): void {
     // Disables New Novel / New Chapter while a create/delete is in flight so
     // a repeated accelerator can't double-create.
     busy: isMutating,
+    splitOpen: isSplitOpen,
   };
 
   // Stores fire on plenty of changes the menu doesn't care about; only cross

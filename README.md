@@ -34,6 +34,20 @@ A distraction-free, AI-powered writing application designed for novelists and cr
 - **Automatic switching**: Opening a document loads its chat; deleting one removes its history
 - **Durable context**: Conversations survive refresh; the last 40 turns are sent back to Claude for context
 
+### 🗂️ Corkboard
+- **Index cards** for every chapter: title, position, word count, and an **editable synopsis** (click to edit, saved on blur)
+- **Drag and drop** to rearrange, with two explicit modes:
+  - **Manuscript order** — dragging a card reorders the actual chapters (same as the Outline)
+  - **Planning order** — a corkboard-only arrangement, persisted per novel server-side, that never touches the manuscript until you press **Apply to manuscript**
+- Planning order reconciles automatically: deleted chapters drop off, new chapters append
+
+### ⬅➡ Split Editor
+- Open a second, **fully editable** chapter beside the one you're writing (toolbar button, or View ▸ Split Editor on desktop)
+- Both panes **scroll independently** with independent cursors; drag the divider to resize (persisted)
+- A different chapter gets its own buffer, autosave, and undo history
+- **The same chapter in both panes is one document** (Scrivener-style): edits appear in the other pane instantly via ProseMirror step-forwarding, share **one undo stack**, and flow through the normal autosave — useful for editing two parts of a long chapter at once
+- Undo/redo (keyboard or desktop menu) always target the pane you last touched
+
 ### 📸 Chapter Snapshots
 - **Take a snapshot** of a chapter before a big edit (toolbar button, or `Ctrl/Cmd+Shift+T` in the desktop app) — optionally named, e.g. "Before rewrite"
 - **Browse and read** previous versions at any time; rename or delete them freely
@@ -141,7 +155,7 @@ chosen to never shadow the editor's own bindings (bold/italic/underline,
 inline code, blockquote, alignment, headings…) or OS-level keys like AltGr
 combos and GNOME's `Ctrl+Alt+arrows`. Highlights: `Ctrl/Cmd+Shift+N` new
 novel, `Ctrl/Cmd+N` new chapter, `Ctrl/Cmd+P` export, `Ctrl/Cmd+F` find,
-`Ctrl/Cmd+1/2/3` Manuscript / Outline / Focus, `Ctrl/Cmd+Shift+\` sidebar,
+`Ctrl/Cmd+1/2/3/4` Manuscript / Outline / Focus / Corkboard, `Ctrl/Cmd+Shift+\` sidebar,
 `Ctrl+PgUp/PgDn` (macOS: `Cmd+Alt+←/→`) previous/next chapter,
 `Ctrl/Cmd+Shift+K` Codex, `Ctrl/Cmd+,` AI settings. The full list lives under
 Help ▸ Keyboard Shortcuts.

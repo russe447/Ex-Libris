@@ -8,10 +8,11 @@ import { persist } from 'zustand/middleware';
  * - `focus`   — the editor alone. Chrome is hidden until you ask for it back.
  * - `outline` — the chapter list promoted to the main surface. Opening a
  *               chapter from here hands you back to `write`.
+ * - `corkboard` — chapters as index cards with synopses, Scrivener-style.
  */
-export type WorkspaceView = 'write' | 'focus' | 'outline';
+export type WorkspaceView = 'write' | 'focus' | 'outline' | 'corkboard';
 
-export const WORKSPACE_VIEWS: WorkspaceView[] = ['write', 'focus', 'outline'];
+export const WORKSPACE_VIEWS: WorkspaceView[] = ['write', 'focus', 'outline', 'corkboard'];
 
 export function isWorkspaceView(value: unknown): value is WorkspaceView {
   return typeof value === 'string' && (WORKSPACE_VIEWS as string[]).includes(value);
@@ -24,6 +25,13 @@ interface WorkspaceState {
   /** Remembered so returning from Focus doesn't silently re-open the sidebar. */
   isSidebarOpen: boolean;
   sidebarTab: SidebarTab;
+  /** Split editor: a read-only reference chapter beside the one being written. */
+  isSplitOpen: boolean;
+  /** null = pane open but no chapter picked yet. Validated against the live
+   *  chapter list at render time, so stale/cross-novel ids fail soft. */
+  splitChapterId: string | null;
+  /** The split pane's share of the editor row's width (0.25–0.65). */
+  splitRatio: number;
   setView: (view: WorkspaceView) => void;
   /** Cycles Write → Focus → Outline → Write. Bound to Ctrl/Cmd+\. */
   cycleView: () => void;
@@ -32,6 +40,15 @@ interface WorkspaceState {
   setSidebarTab: (tab: SidebarTab) => void;
   /** Reveals a panel: opens the sidebar (leaving Focus if need be) and selects it. */
   openSidebarTab: (tab: SidebarTab) => void;
+  toggleSplit: () => void;
+  setSplitChapter: (chapterId: string | null) => void;
+  closeSplit: () => void;
+  setSplitRatio: (ratio: number) => void;
+}
+
+export function clampSplitRatio(value: number): number {
+  if (!Number.isFinite(value)) return 0.42;
+  return Math.min(0.65, Math.max(0.25, value));
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()(
@@ -40,6 +57,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       view: 'write',
       isSidebarOpen: true,
       sidebarTab: 'chat',
+      isSplitOpen: false,
+      splitChapterId: null,
+      splitRatio: 0.42,
       setView: (view) => {
         if (!isWorkspaceView(view) || get().view === view) return;
         set({ view });
@@ -57,6 +77,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           isSidebarOpen: true,
           view: state.view === 'focus' ? 'write' : state.view,
         })),
+      toggleSplit: () => set((state) => ({ isSplitOpen: !state.isSplitOpen })),
+      setSplitChapter: (splitChapterId) => set({ splitChapterId, isSplitOpen: true }),
+      closeSplit: () => set({ isSplitOpen: false }),
+      setSplitRatio: (ratio) => set({ splitRatio: clampSplitRatio(ratio) }),
     }),
     {
       name: 'exlibris-workspace',
@@ -70,6 +94,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           view: isWorkspaceView(saved.view) ? saved.view : current.view,
           isSidebarOpen: typeof saved.isSidebarOpen === 'boolean' ? saved.isSidebarOpen : current.isSidebarOpen,
           sidebarTab: saved.sidebarTab ?? current.sidebarTab,
+          isSplitOpen: typeof saved.isSplitOpen === 'boolean' ? saved.isSplitOpen : current.isSplitOpen,
+          splitChapterId: typeof saved.splitChapterId === 'string' ? saved.splitChapterId : null,
+          splitRatio: clampSplitRatio(
+            typeof saved.splitRatio === 'number' ? saved.splitRatio : current.splitRatio
+          ),
         };
       },
     }

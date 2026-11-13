@@ -3,6 +3,7 @@ import { ManuscriptChapter } from '@/types';
 import { MIN_QUERY_LENGTH, SearchHit, SearchOptions, searchManuscript } from '@/lib/search';
 import * as novelsService from '@/services/novels';
 import { useEditorStore } from '@/stores/editorStore';
+import { useSplitEditorStore } from '@/stores/splitEditorStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 
 /** What the editor should scroll to and flash once the chapter is mounted. */
@@ -98,15 +99,21 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     set({ isSearching: true, error: null });
 
     try {
-      // Anything unsaved in the open chapter should be searchable too.
+      // Anything unsaved in either open pane should be searchable too.
       await useEditorStore.getState().flush();
+      await useSplitEditorStore.getState().flush();
       const chapters = await loadManuscript(activeNovelId);
       if (id !== runId) return;
 
-      // Prefer the live buffer over the server copy for the open chapter.
+      // Prefer the live buffers over the server copy for the open chapters.
       const editor = useEditorStore.getState();
+      const split = useSplitEditorStore.getState();
       const merged = chapters.map((chapter) =>
-        chapter.id === editor.chapterId ? { ...chapter, content: editor.content } : chapter
+        chapter.id === editor.chapterId
+          ? { ...chapter, content: editor.content }
+          : chapter.id === split.chapterId
+            ? { ...chapter, content: split.content }
+            : chapter
       );
 
       set({

@@ -341,7 +341,7 @@ export function SnapshotsDialog({ children }: { children: React.ReactNode }) {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-red-400 hover:text-red-300"
+                              className="text-academia-error hover:opacity-80"
                               disabled={isWorking}
                               onClick={() => void handleDelete()}
                             >
@@ -415,10 +415,13 @@ export function SnapshotsDialog({ children }: { children: React.ReactNode }) {
                                 <span
                                   key={segmentIndex}
                                   className={cn(
+                                    // Theme-aware tints: the palette's var()
+                                    // colors don't support Tailwind's opacity
+                                    // shorthand, hence color-mix.
                                     segment.type === 'added' &&
-                                      'bg-emerald-500/15 text-emerald-300 rounded-sm px-0.5',
+                                      'text-academia-success bg-[color-mix(in_srgb,var(--color-success)_14%,transparent)] rounded-sm px-0.5',
                                     segment.type === 'removed' &&
-                                      'bg-red-500/15 text-red-300 line-through decoration-red-400/60 rounded-sm px-0.5'
+                                      'text-academia-error bg-[color-mix(in_srgb,var(--color-error)_12%,transparent)] line-through rounded-sm px-0.5'
                                   )}
                                 >
                                   {segment.text}
@@ -433,7 +436,7 @@ export function SnapshotsDialog({ children }: { children: React.ReactNode }) {
                 )}
 
                 {error && (
-                  <div className="px-4 py-2 border-t border-academia-border text-xs text-red-400 shrink-0">
+                  <div className="px-4 py-2 border-t border-academia-border text-xs text-academia-error shrink-0">
                     {error}
                   </div>
                 )}

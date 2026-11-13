@@ -40,12 +40,13 @@ let targetWindow = null;
 
 /** What the renderer last told us. Safe defaults until the app has booted. */
 let state = {
-  view: 'write', // 'write' | 'focus' | 'outline'
+  view: 'write', // 'write' | 'focus' | 'outline' | 'corkboard'
   sidebarOpen: true,
   themeId: '',
   themes: /** @type {{ id: string, name: string }[]} */ ([]),
   hasNovel: false,
   hasChapter: false,
+  splitOpen: false,
   hasPrevChapter: false,
   hasNextChapter: false,
   /** A create/delete is in flight — hold New Novel / New Chapter. */
@@ -62,8 +63,8 @@ function send(actionId) {
 function sanitizeState(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const next = { ...state };
-  if (['write', 'focus', 'outline'].includes(raw.view)) next.view = raw.view;
-  for (const key of ['sidebarOpen', 'hasNovel', 'hasChapter', 'hasPrevChapter', 'hasNextChapter', 'busy']) {
+  if (['write', 'focus', 'outline', 'corkboard'].includes(raw.view)) next.view = raw.view;
+  for (const key of ['sidebarOpen', 'hasNovel', 'hasChapter', 'hasPrevChapter', 'hasNextChapter', 'busy', 'splitOpen']) {
     if (typeof raw[key] === 'boolean') next[key] = raw[key];
   }
   if (typeof raw.themeId === 'string' && raw.themeId.length <= 100) next.themeId = raw.themeId;
@@ -184,7 +185,21 @@ function buildTemplate() {
           accelerator: 'CmdOrCtrl+3',
           click: () => send('view:focus'),
         },
+        {
+          label: 'Corkboard',
+          type: 'radio',
+          checked: state.view === 'corkboard',
+          accelerator: 'CmdOrCtrl+4',
+          click: () => send('view:corkboard'),
+        },
         { type: 'separator' },
+        {
+          label: 'Split Editor',
+          type: 'checkbox',
+          checked: state.splitOpen,
+          enabled: state.hasChapter,
+          click: () => send('view:toggle-split'),
+        },
         {
           label: 'Sidebar',
           type: 'checkbox',
@@ -293,7 +308,7 @@ function showShortcuts() {
     `${mod}+F\tFind in novel`,
     `${mod}+Z / ${isMac ? '⇧⌘Z' : 'Ctrl+Y'}\tUndo / redo`,
     '',
-    `${mod}+1 / 2 / 3\tManuscript / Outline / Focus`,
+    `${mod}+1 / 2 / 3 / 4\tManuscript / Outline / Focus / Corkboard`,
     `${mod}+\\\tCycle views`,
     `Esc\tLeave Focus`,
     `${mod}+Shift+\\\tToggle sidebar`,

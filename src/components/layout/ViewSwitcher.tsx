@@ -1,4 +1,4 @@
-import { PenLine, Focus, ListTree } from 'lucide-react';
+import { PenLine, Focus, ListTree, LayoutGrid } from 'lucide-react';
 import { useWorkspaceStore, WorkspaceView } from '@/stores/workspaceStore';
 import { cn } from '@/lib/utils';
 
@@ -6,6 +6,7 @@ const VIEWS: { id: WorkspaceView; label: string; hint: string; Icon: typeof PenL
   { id: 'write', label: 'Write', hint: 'Editor, chapters, and assistant together', Icon: PenLine },
   { id: 'focus', label: 'Focus', hint: 'The editor alone (Esc to leave)', Icon: Focus },
   { id: 'outline', label: 'Outline', hint: 'All chapters at a glance', Icon: ListTree },
+  { id: 'corkboard', label: 'Corkboard', hint: 'Chapters as index cards, drag to arrange', Icon: LayoutGrid },
 ];
 
 /** Segmented control for the workspace view. Persisted via the workspace store. */

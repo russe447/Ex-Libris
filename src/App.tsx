@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Editor } from '@/components/editor/Editor';
 import { OutlineView } from '@/components/outline/OutlineView';
+import { CorkboardView } from '@/components/corkboard/CorkboardView';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { useLibraryStore } from '@/stores/libraryStore';
@@ -24,7 +25,7 @@ function App() {
   return (
     <ThemeProvider>
       <AppLayout sidebar={view === 'focus' ? null : <Sidebar />}>
-        {view === 'outline' ? <OutlineView /> : <Editor />}
+        {view === 'outline' ? <OutlineView /> : view === 'corkboard' ? <CorkboardView /> : <Editor />}
       </AppLayout>
     </ThemeProvider>
   );

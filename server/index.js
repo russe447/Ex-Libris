@@ -91,6 +91,7 @@ const MAX_CODEX_CONTEXT_CHARS = 30000;
 const MAX_MESSAGE_CONTEXT_ENTRIES = 20;
 const MAX_MANUSCRIPT_CONTEXT_CHARS = 120000; // was an inline 50000 for documentContext
 const MAX_CHAPTERS_PER_NOVEL = 500;
+const MAX_SYNOPSIS_LENGTH = 4000; // index-card synopsis, not a second manuscript
 
 function validateCodexFields(fields) {
   if (fields == null) return { ok: true, json: '{}' };
@@ -154,6 +155,7 @@ function formatChapter(row, { withContent = true } = {}) {
     novelId: row.novel_id,
     title: row.title,
     ...(withContent ? { content: row.content } : {}),
+    synopsis: row.synopsis ?? '',
     wordCount: row.word_count,
     position: row.position,
     createdAt: row.created_at,
@@ -273,7 +275,7 @@ app.get('/api/novels/:novelId', (req, res) => {
     if (!requireNovel(req, res)) return;
     const novel = db.prepare('SELECT * FROM novels WHERE id = ?').get(req.params.novelId);
     const chapters = db.prepare(`
-      SELECT id, novel_id, title, word_count, position, created_at, last_modified
+      SELECT id, novel_id, title, synopsis, word_count, position, created_at, last_modified
       FROM chapters WHERE novel_id = ?
       ORDER BY position ASC, created_at ASC, rowid ASC
     `).all(req.params.novelId);
@@ -337,7 +339,7 @@ app.post('/api/novels', (req, res) => {
     createNovelTx(novelId, sanitizedTitle, chapterId, 'Chapter One', now);
     const novel = db.prepare('SELECT * FROM novels WHERE id = ?').get(novelId);
     const chapters = db.prepare(`
-      SELECT id, novel_id, title, word_count, position, created_at, last_modified
+      SELECT id, novel_id, title, synopsis, word_count, position, created_at, last_modified
       FROM chapters WHERE novel_id = ? ORDER BY position ASC
     `).all(novelId);
     res.status(201).json({
@@ -403,7 +405,7 @@ app.get('/api/novels/:novelId/chapters', (req, res) => {
   try {
     if (!requireNovel(req, res)) return;
     const rows = db.prepare(`
-      SELECT id, novel_id, title, word_count, position, created_at, last_modified
+      SELECT id, novel_id, title, synopsis, word_count, position, created_at, last_modified
       FROM chapters WHERE novel_id = ?
       ORDER BY position ASC, created_at ASC, rowid ASC
     `).all(req.params.novelId);
@@ -446,7 +448,7 @@ app.put('/api/novels/:novelId/chapters/order', (req, res) => {
     }
     reorderChaptersTx(req.params.novelId, chapterIds, new Date().toISOString());
     const rows = db.prepare(`
-      SELECT id, novel_id, title, word_count, position, created_at, last_modified
+      SELECT id, novel_id, title, synopsis, word_count, position, created_at, last_modified
       FROM chapters WHERE novel_id = ? ORDER BY position ASC
     `).all(req.params.novelId);
     res.json(rows.map((row) => formatChapter(row, { withContent: false })));
@@ -522,7 +524,7 @@ app.put('/api/novels/:novelId/chapters/:chapterId', (req, res) => {
     }
     const existing = findChapter(req.params.novelId, req.params.chapterId);
     if (!existing) return res.status(404).json({ error: 'Chapter not found' });
-    const { title, content, wordCount } = req.body ?? {};
+    const { title, content, wordCount, synopsis } = req.body ?? {};
     let nextTitle = existing.title;
     if (title !== undefined) {
       nextTitle = sanitizeString(title);
@@ -539,11 +541,18 @@ app.put('/api/novels/:novelId/chapters/:chapterId', (req, res) => {
     if (wordCount !== undefined) {
       nextWordCount = typeof wordCount === 'number' && wordCount >= 0 ? Math.floor(wordCount) : 0;
     }
+    let nextSynopsis = existing.synopsis ?? '';
+    if (synopsis !== undefined) {
+      if (typeof synopsis !== 'string' || synopsis.length > MAX_SYNOPSIS_LENGTH) {
+        return res.status(400).json({ error: 'Synopsis too long' });
+      }
+      nextSynopsis = synopsis.replace(/\0/g, '');
+    }
     const now = new Date().toISOString();
     db.prepare(`
-      UPDATE chapters SET title = ?, content = ?, word_count = ?, last_modified = ?
+      UPDATE chapters SET title = ?, content = ?, word_count = ?, synopsis = ?, last_modified = ?
       WHERE id = ? AND novel_id = ?
-    `).run(nextTitle, nextContent, nextWordCount, now, req.params.chapterId, req.params.novelId);
+    `).run(nextTitle, nextContent, nextWordCount, nextSynopsis, now, req.params.chapterId, req.params.novelId);
     touchNovel(req.params.novelId, now);
     res.json(formatChapter(findChapter(req.params.novelId, req.params.chapterId)));
   } catch (error) {
@@ -577,6 +586,68 @@ app.delete('/api/novels/:novelId/chapters/:chapterId', (req, res) => {
     res.status(500).json({ error: 'Failed to delete chapter' });
   }
 });
+
+// ============================================
+// CORKBOARD ENDPOINTS
+// ============================================
+//
+// The corkboard's card arrangement, stored per novel as one JSON value:
+//   { mode: 'manuscript' | 'custom', order: [chapterId, ...] }
+//
+// 'manuscript' mirrors chapters.position (dragging there reorders the real
+// manuscript through the normal reorder endpoint). 'custom' is a planning
+// order that lives ONLY here — it never touches chapters.position until the
+// author explicitly applies it. Stale/missing ids are tolerated on read: the
+// client reconciles against the live chapter list.
+function readCorkboard(novelRow) {
+  let parsed = {};
+  try {
+    parsed = JSON.parse(novelRow.corkboard || '{}') || {};
+  } catch {
+    parsed = {};
+  }
+  return {
+    mode: parsed.mode === 'custom' ? 'custom' : 'manuscript',
+    order: Array.isArray(parsed.order) ? parsed.order.filter(isValidId) : [],
+  };
+}
+
+app.get('/api/novels/:novelId/corkboard', (req, res) => {
+  try {
+    if (!requireNovel(req, res)) return;
+    const novel = db.prepare('SELECT corkboard FROM novels WHERE id = ?').get(req.params.novelId);
+    res.json(readCorkboard(novel));
+  } catch (error) {
+    console.error('Error reading corkboard:', error);
+    res.status(500).json({ error: 'Failed to read the corkboard' });
+  }
+});
+
+app.put('/api/novels/:novelId/corkboard', (req, res) => {
+  try {
+    if (!requireNovel(req, res)) return;
+    const { mode, order } = req.body ?? {};
+    if (!['manuscript', 'custom'].includes(mode)) {
+      return res.status(400).json({ error: 'Invalid corkboard mode' });
+    }
+    if (
+      !Array.isArray(order) ||
+      order.length > MAX_CHAPTERS_PER_NOVEL ||
+      !order.every(isValidId)
+    ) {
+      return res.status(400).json({ error: 'Invalid corkboard order' });
+    }
+    const value = JSON.stringify({ mode, order });
+    // Deliberately NOT touchNovel(): arranging plans isn't editing prose, and
+    // it shouldn't bubble the novel to the top of "recently modified".
+    db.prepare('UPDATE novels SET corkboard = ? WHERE id = ?').run(value, req.params.novelId);
+    res.json({ mode, order });
+  } catch (error) {
+    console.error('Error saving corkboard:', error);
+    res.status(500).json({ error: 'Failed to save the corkboard' });
+  }
+});
+
 // ============================================
 // CHAPTER SNAPSHOT ENDPOINTS
 // ============================================

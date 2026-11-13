@@ -4,6 +4,7 @@ import { Download, Loader2, X, FileText, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useEditorStore } from '@/stores/editorStore';
+import { useSplitEditorStore } from '@/stores/splitEditorStore';
 import {
   EXPORT_FORMATS,
   ExportFormat,
@@ -39,8 +40,10 @@ export function ExportDialog({ children }: { children: React.ReactNode }) {
     setDoneFormat(null);
     try {
       // Persist the open chapter first — exporting prose you just typed but
-      // haven't autosaved yet is the whole point of flushing here.
+      // haven't autosaved yet is the whole point of flushing here. The split
+      // pane's buffer too, if one is open.
       await useEditorStore.getState().flush();
+      await useSplitEditorStore.getState().flush();
       const manuscript = await novelsService.fetchManuscript(activeNovelId);
       const editor = useEditorStore.getState();
       const blob = await buildExport(

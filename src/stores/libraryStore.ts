@@ -4,8 +4,10 @@ import { generateId } from '@/lib/utils';
 import * as novelsService from '@/services/novels';
 import * as chaptersService from '@/services/chapters';
 import { useEditorStore } from '@/stores/editorStore';
+import { useSplitEditorStore } from '@/stores/splitEditorStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useCodexStore } from '@/stores/codexStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 const LS_ACTIVE_NOVEL = 'exlibris_active_novel';
 const LS_LAST_CHAPTERS = 'exlibris_last_chapter_by_novel';
 const LS_LEGACY_DOCUMENT = 'exlibris_active_document';
@@ -29,8 +31,11 @@ interface LibraryState {
   createChapter: () => Promise<string | null>;
   openChapter: (chapterId: string) => Promise<void>;
   renameChapter: (chapterId: string, title: string) => Promise<void>;
+  /** Corkboard card text. Optimistic, rolled back on failure. */
+  updateSynopsis: (chapterId: string, synopsis: string) => Promise<void>;
   deleteChapter: (chapterId: string) => Promise<void>;
-  reorderChapters: (orderedIds: string[]) => Promise<void>;
+  /** Resolves true when the new order is persisted, false on failure. */
+  reorderChapters: (orderedIds: string[]) => Promise<boolean>;
 }
 /** Guards against out-of-order fetches when the user clicks faster than the network. */
 let novelRequestId = 0;
@@ -98,9 +103,18 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
   openNovel: async (novelId) => {
-    if (get().activeNovelId === novelId) return;
-    // Never abandon the current chapter's edits on a switch.
+    const previousNovelId = get().activeNovelId;
+    if (previousNovelId === novelId) return;
+    // Never abandon the current chapter's edits on a switch — either pane's.
     await useEditorStore.getState().flush();
+    await useSplitEditorStore.getState().close(); // flushes, then empties
+    // Only an actual novel SWITCH invalidates the split selection. On app
+    // boot (no previous novel) the persisted split state is being restored —
+    // clearing it here would close the pane on every launch.
+    if (previousNovelId) {
+      useWorkspaceStore.getState().setSplitChapter(null);
+      useWorkspaceStore.getState().closeSplit();
+    }
     const requestId = ++novelRequestId;
     set({
       activeNovelId: novelId,
@@ -204,6 +218,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const { activeNovelId, activeChapterId } = get();
     if (!activeNovelId || activeChapterId === chapterId) return;
     await useEditorStore.getState().flush();
+    // If this chapter is currently being edited in the split pane, persist
+    // those edits first — we're about to load the server copy into the
+    // primary buffer (after which the split pane switches to mirror mode).
+    if (useSplitEditorStore.getState().chapterId === chapterId) {
+      await useSplitEditorStore.getState().flush();
+    }
     const requestId = ++chapterRequestId;
     set({ activeChapterId: chapterId, error: null });
     useEditorStore.getState().beginLoad();
@@ -217,6 +237,23 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       if (requestId !== chapterRequestId) return;
       useEditorStore.getState().closeChapter();
       set({ activeChapterId: null, error: 'Could not open that chapter.' });
+    }
+  },
+  updateSynopsis: async (chapterId, synopsis) => {
+    const { activeNovelId } = get();
+    if (!activeNovelId) return;
+    const previous = get().chapters;
+    const current = previous.find((c) => c.id === chapterId);
+    if (!current || current.synopsis === synopsis) return;
+    set({
+      chapters: previous.map((c) => (c.id === chapterId ? { ...c, synopsis } : c)),
+      error: null,
+    });
+    try {
+      await chaptersService.updateChapter(activeNovelId, chapterId, { synopsis });
+    } catch (error) {
+      console.error('Failed to update synopsis:', error);
+      set({ chapters: previous, error: 'Could not save the synopsis.' });
     }
   },
   renameChapter: async (chapterId, title) => {
@@ -254,6 +291,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const fallback = next[Math.min(index, next.length - 1)];
       if (fallback) await get().openChapter(fallback.id);
     }
+    // Evict it from the split pane too (again without flushing).
+    if (useSplitEditorStore.getState().chapterId === chapterId) {
+      void useSplitEditorStore.getState().close({ flush: false });
+    }
+    if (useWorkspaceStore.getState().splitChapterId === chapterId) {
+      useWorkspaceStore.setState({ splitChapterId: null });
+    }
     try {
       await chaptersService.deleteChapter(activeNovelId, chapterId);
       useCodexStore.getState().dropChapterTally(chapterId);
@@ -265,9 +309,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
   reorderChapters: async (orderedIds) => {
     const { activeNovelId, chapters } = get();
-    if (!activeNovelId) return;
+    if (!activeNovelId) return false;
     const byId = new Map(chapters.map((chapter) => [chapter.id, chapter]));
-    if (orderedIds.length !== chapters.length || orderedIds.some((id) => !byId.has(id))) return;
+    if (orderedIds.length !== chapters.length || orderedIds.some((id) => !byId.has(id))) {
+      return false;
+    }
     const previous = chapters;
     set({
       chapters: orderedIds.map((id, position) => ({ ...byId.get(id)!, position })),
@@ -275,10 +321,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     });
     try {
       await chaptersService.reorderChapters(activeNovelId, orderedIds);
+      return true;
     } catch (error) {
       console.error('Failed to reorder chapters:', error);
-      if (get().activeNovelId !== activeNovelId) return;
+      if (get().activeNovelId !== activeNovelId) return false;
       set({ chapters: previous, error: 'Could not save the new chapter order.' });
+      return false;
     }
   },
 }));
@@ -289,7 +337,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
  * imports `libraryStore`, so there's no cycle. The library observes the editor,
  * not the other way round.
  */
-useEditorStore.subscribe((state, previous) => {
+function mirrorWordCount(state: { wordCount: number; chapterId: string | null }, previous: { wordCount: number; chapterId: string | null }): void {
   if (state.wordCount === previous.wordCount || !state.chapterId) return;
   useLibraryStore.setState((library) => {
     const chapters = library.chapters.map((chapter) =>
@@ -303,4 +351,8 @@ useEditorStore.subscribe((state, previous) => {
       ),
     };
   });
-});
+}
+useEditorStore.subscribe(mirrorWordCount);
+// The split pane's buffer always holds a *different* chapter, so the two
+// subscriptions can never fight over one row.
+useSplitEditorStore.subscribe(mirrorWordCount);

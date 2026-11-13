@@ -36,6 +36,8 @@ export interface Chapter {
   novelId: string;
   title: string;
   content: string;
+  /** One-or-two-line card text for the Corkboard. Empty until written. */
+  synopsis: string;
   wordCount: number;
   /** Contiguous 0..n-1 within the novel. The server owns this. */
   position: number;

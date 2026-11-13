@@ -14,9 +14,12 @@ import {
   Undo,
   Redo,
   History,
+  Columns2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { SnapshotsDialog } from './SnapshotsDialog';
+import { openReferencePane } from '@/lib/splitEditor';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { cn } from '@/lib/utils';
 
 interface EditorToolbarProps {
@@ -33,6 +36,7 @@ interface ToolItem {
 }
 
 export function EditorToolbar({ editor }: EditorToolbarProps) {
+  const isSplitOpen = useWorkspaceStore((state) => state.isSplitOpen);
   if (!editor) return null;
 
   const tools: ToolItem[] = [
@@ -151,6 +155,18 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       })}
       {/* Right-aligned: chapter-level tools rather than text formatting. */}
       <div className="ml-auto flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('h-8 w-8', isSplitOpen && 'bg-academia-bg-elevated text-academia-accent')}
+          title="Split editor — open another chapter alongside, fully editable"
+          onClick={() => {
+            if (isSplitOpen) useWorkspaceStore.getState().closeSplit();
+            else openReferencePane();
+          }}
+        >
+          <Columns2 className="h-4 w-4" />
+        </Button>
         <SnapshotsDialog>
           <Button
             variant="ghost"

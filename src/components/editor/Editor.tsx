@@ -13,6 +13,10 @@ import { useLibraryStore } from '@/stores/libraryStore';
 import { useSearchStore } from '@/stores/searchStore';
 import { onUiCommand } from '@/lib/uiBus';
 import { SearchHighlight, findMatchRange, searchHighlightKey } from './searchHighlight';
+import { SplitPane } from './SplitPane';
+import { SplitResizer } from './SplitResizer';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { routeHistory, setFocusedEditor, setPrimaryEditor } from '@/lib/editorRegistry';
 /**
  * One TipTap instance per chapter. The parent keys this on `chapterId`, so a
  * chapter switch destroys and recreates it — which is the only reliable way to
@@ -39,18 +43,27 @@ function ChapterEditor() {
     // Synchronous. The store debounces the network save, so the buffer is never
     // newer than what flush() can persist before a chapter switch.
     onUpdate: ({ editor: instance }) => setContent(instance.getHTML()),
+    onFocus: ({ editor: instance }) => setFocusedEditor(instance, 'primary'),
   });
-  // Desktop menu Edit ▸ Undo/Redo. ProseMirror keeps its own history, so the
-  // native role would miss; these reach TipTap's stack directly.
+
+  // Publish this instance so the split pane can mirror it and menu undo/redo
+  // can find it. Cleared on unmount (chapter switch, restore, view change).
   useEffect(() => {
     if (!editor) return;
-    const offUndo = onUiCommand('editor-undo', () => editor.chain().focus().undo().run());
-    const offRedo = onUiCommand('editor-redo', () => editor.chain().focus().redo().run());
+    setPrimaryEditor(editor);
+    return () => setPrimaryEditor(null);
+  }, [editor]);
+  // Desktop menu Edit ▸ Undo/Redo. ProseMirror keeps its own history, so the
+  // native role would miss; routeHistory aims at the focused pane's stack
+  // (the mirror pane defers to this editor's — one document, one stack).
+  useEffect(() => {
+    const offUndo = onUiCommand('editor-undo', () => routeHistory('undo'));
+    const offRedo = onUiCommand('editor-redo', () => routeHistory('redo'));
     return () => {
       offUndo();
       offRedo();
     };
-  }, [editor]);
+  }, []);
   // A search hit that landed on this chapter: select it, scroll to it, and
   // leave a fading highlight so the eye can find it on a dense page.
   const pendingJump = useSearchStore((state) => state.pendingJump);
@@ -100,6 +113,8 @@ export function Editor() {
   const loadVersion = useEditorStore((state) => state.loadVersion);
   const isLoadingChapter = useEditorStore((state) => state.isLoadingChapter);
   const activeNovelId = useLibraryStore((state) => state.activeNovelId);
+  const isSplitOpen = useWorkspaceStore((state) => state.isSplitOpen);
+  const splitRatio = useWorkspaceStore((state) => state.splitRatio);
   // Previously the editor was always writable. With no active document, every
   // keystroke went into a store that had nothing to save it to.
   if (!chapterId) {
@@ -117,8 +132,24 @@ export function Editor() {
     );
   }
   return (
-    <div className="flex flex-col h-full">
-      <ChapterEditor key={`${chapterId}:${loadVersion}`} />
+    // Split editor: two independently scrolling panes around a draggable
+    // divider; the widths come from the persisted ratio.
+    <div className="flex h-full">
+      <div
+        data-testid="primary-pane"
+        className="flex flex-col h-full min-w-[16rem]"
+        style={{ flex: isSplitOpen ? `${1 - splitRatio} 1 0%` : '1 1 0%' }}
+      >
+        <ChapterEditor key={`${chapterId}:${loadVersion}`} />
+      </div>
+      {isSplitOpen && (
+        <>
+          <SplitResizer />
+          <div className="flex h-full min-w-[16rem]" style={{ flex: `${splitRatio} 1 0%` }}>
+            <SplitPane />
+          </div>
+        </>
+      )}
     </div>
   );
 }

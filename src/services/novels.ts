@@ -12,6 +12,7 @@ interface ApiChapterSummary {
   id: string;
   novelId: string;
   title: string;
+  synopsis: string;
   wordCount: number;
   position: number;
   createdAt: string;

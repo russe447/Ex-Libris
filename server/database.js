@@ -203,5 +203,21 @@ db.exec(SETTINGS_SCHEMA);
 // Added after the novels migration shipped, so unlike the tables above it is
 // created unconditionally — IF NOT EXISTS upgrades existing libraries in place.
 db.exec(SNAPSHOTS_SCHEMA);
+
+// ---------------------------------------------------------------------------
+// In-place column upgrades (idempotent, run on every start)
+// ---------------------------------------------------------------------------
+// Corkboard: a one-or-two-line synopsis per chapter, shown on its index card.
+if (!columnNames('chapters').includes('synopsis')) {
+  db.exec("ALTER TABLE chapters ADD COLUMN synopsis TEXT NOT NULL DEFAULT ''");
+}
+// Corkboard arrangement per novel: JSON {"mode":"manuscript"|"custom",
+// "order":[chapterIds]}. Kept on the novel (not per-chapter positions) so the
+// planning order is one atomic value, separate from chapters.position — the
+// manuscript's real order — which it must never silently affect.
+if (!columnNames('novels').includes('corkboard')) {
+  db.exec("ALTER TABLE novels ADD COLUMN corkboard TEXT NOT NULL DEFAULT '{}'");
+}
+
 db.pragma('foreign_keys = ON');
 export default db;
