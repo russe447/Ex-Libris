@@ -38,6 +38,14 @@ export interface Chapter {
   content: string;
   /** One-or-two-line card text for the Corkboard. Empty until written. */
   synopsis: string;
+  /** Workflow state: 'idea' | 'draft' | 'revised' | 'complete'. */
+  status: import('@/lib/chapterMeta').ChapterStatus;
+  /** POV character name (free text, '' = unset). */
+  pov: string;
+  /** Free-form labels, server-deduped case-insensitively. */
+  tags: string[];
+  /** Corkboard card colour id ('' = none). */
+  color: string;
   wordCount: number;
   /** Contiguous 0..n-1 within the novel. The server owns this. */
   position: number;

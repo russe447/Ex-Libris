@@ -8,6 +8,7 @@ import { useSplitEditorStore } from '@/stores/splitEditorStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useCodexStore } from '@/stores/codexStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useChapterFilterStore } from '@/stores/chapterFilterStore';
 const LS_ACTIVE_NOVEL = 'exlibris_active_novel';
 const LS_LAST_CHAPTERS = 'exlibris_last_chapter_by_novel';
 const LS_LEGACY_DOCUMENT = 'exlibris_active_document';
@@ -33,6 +34,11 @@ interface LibraryState {
   renameChapter: (chapterId: string, title: string) => Promise<void>;
   /** Corkboard card text. Optimistic, rolled back on failure. */
   updateSynopsis: (chapterId: string, synopsis: string) => Promise<void>;
+  /** Status / POV / tags / colour. Optimistic, rolled back on failure. */
+  updateChapterMeta: (
+    chapterId: string,
+    patch: Partial<Pick<ChapterSummary, 'status' | 'pov' | 'tags' | 'color'>>
+  ) => Promise<void>;
   deleteChapter: (chapterId: string) => Promise<void>;
   /** Resolves true when the new order is persisted, false on failure. */
   reorderChapters: (orderedIds: string[]) => Promise<boolean>;
@@ -114,6 +120,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     if (previousNovelId) {
       useWorkspaceStore.getState().setSplitChapter(null);
       useWorkspaceStore.getState().closeSplit();
+      // A filter is a question about ONE novel's chapters.
+      useChapterFilterStore.getState().clearFilters();
     }
     const requestId = ++novelRequestId;
     set({
@@ -254,6 +262,24 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     } catch (error) {
       console.error('Failed to update synopsis:', error);
       set({ chapters: previous, error: 'Could not save the synopsis.' });
+    }
+  },
+  updateChapterMeta: async (chapterId, patch) => {
+    const { activeNovelId } = get();
+    if (!activeNovelId || Object.keys(patch).length === 0) return;
+    const previous = get().chapters;
+    const current = previous.find((c) => c.id === chapterId);
+    if (!current) return;
+    set({
+      chapters: previous.map((c) => (c.id === chapterId ? { ...c, ...patch } : c)),
+      error: null,
+    });
+    try {
+      await chaptersService.updateChapter(activeNovelId, chapterId, patch);
+    } catch (error) {
+      console.error('Failed to update chapter metadata:', error);
+      if (get().activeNovelId !== activeNovelId) return;
+      set({ chapters: previous, error: 'Could not save the chapter details.' });
     }
   },
   renameChapter: async (chapterId, title) => {

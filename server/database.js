@@ -211,6 +211,21 @@ db.exec(SNAPSHOTS_SCHEMA);
 if (!columnNames('chapters').includes('synopsis')) {
   db.exec("ALTER TABLE chapters ADD COLUMN synopsis TEXT NOT NULL DEFAULT ''");
 }
+// Chapter metadata: workflow status, POV character, free-form tags (JSON
+// array), and an optional card colour for the corkboard. All display/filter
+// data — none of it participates in ordering.
+if (!columnNames('chapters').includes('status')) {
+  db.exec("ALTER TABLE chapters ADD COLUMN status TEXT NOT NULL DEFAULT 'idea'");
+}
+if (!columnNames('chapters').includes('pov')) {
+  db.exec("ALTER TABLE chapters ADD COLUMN pov TEXT NOT NULL DEFAULT ''");
+}
+if (!columnNames('chapters').includes('tags')) {
+  db.exec("ALTER TABLE chapters ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'");
+}
+if (!columnNames('chapters').includes('color')) {
+  db.exec("ALTER TABLE chapters ADD COLUMN color TEXT NOT NULL DEFAULT ''");
+}
 // Corkboard arrangement per novel: JSON {"mode":"manuscript"|"custom",
 // "order":[chapterIds]}. Kept on the novel (not per-chapter positions) so the
 // planning order is one atomic value, separate from chapters.position — the

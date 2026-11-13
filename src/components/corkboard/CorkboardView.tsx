@@ -13,11 +13,15 @@
 // so live mode never fires a server reorder per dragged-over card.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Check, LayoutGrid, Loader2, StickyNote } from 'lucide-react';
+import { BookOpen, Check, LayoutGrid, Loader2, StickyNote, Tags } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useCorkboardStore, arrangeChapters } from '@/stores/corkboardStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useChapterFilterStore } from '@/stores/chapterFilterStore';
+import { ChapterFilterBar } from '@/components/chapters/ChapterFilterBar';
+import { ChapterMetaEditor } from '@/components/chapters/ChapterMetaEditor';
+import { cardColorHex, isFilterActive, matchesChapterFilter, statusInfo } from '@/lib/chapterMeta';
 import { ChapterSummary } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +32,7 @@ function IndexCard({
   position,
   isDragging,
   isActive,
+  canDrag,
   onDragStart,
   onDragEnter,
   onDrop,
@@ -38,6 +43,8 @@ function IndexCard({
   position: number;
   isDragging: boolean;
   isActive: boolean;
+  /** False while a filter is active — reordering a partial view is forbidden. */
+  canDrag: boolean;
   onDragStart: () => void;
   onDragEnter: () => void;
   onDrop: () => void;
@@ -60,11 +67,14 @@ function IndexCard({
     }
   };
 
+  const colorHex = cardColorHex(chapter.color);
+  const status = statusInfo(chapter.status);
+
   return (
     <div
       data-testid="corkboard-card"
       data-chapter-id={chapter.id}
-      draggable={!isEditing}
+      draggable={!isEditing && canDrag}
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = 'move';
         // Some browsers need data set for the drag to start.
@@ -85,15 +95,23 @@ function IndexCard({
       className={cn(
         'group relative flex flex-col rounded-lg border bg-academia-bg-elevated shadow-md transition-all duration-150',
         'hover:shadow-lg hover:-translate-y-0.5',
-        isEditing ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
+        isEditing || !canDrag ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-40 rotate-1 scale-[0.98]',
         isActive
           ? 'border-academia-accent/60 ring-1 ring-academia-accent/30'
           : 'border-academia-border'
       )}
+      style={
+        colorHex
+          ? { backgroundColor: `color-mix(in srgb, ${colorHex} 8%, var(--color-bg-elevated))` }
+          : undefined
+      }
     >
-      {/* Index-card header: the classic ruled top line. */}
-      <div className="flex items-baseline gap-2 px-3.5 pt-2.5 pb-2 border-b-2 border-academia-accent/35">
+      {/* Index-card header: the classic ruled top line (card colour if set). */}
+      <div
+        className="flex items-baseline gap-2 px-3.5 pt-2.5 pb-2 border-b-2"
+        style={{ borderBottomColor: colorHex ?? 'color-mix(in srgb, var(--color-accent) 35%, transparent)' }}
+      >
         <span className="shrink-0 text-[10px] font-medium tabular-nums text-academia-text-muted bg-academia-bg-tertiary rounded px-1.5 py-0.5">
           {position}
         </span>
@@ -105,6 +123,16 @@ function IndexCard({
         >
           {chapter.title}
         </button>
+        <ChapterMetaEditor chapter={chapter}>
+          <button
+            type="button"
+            data-testid="meta-trigger"
+            title="Status, POV, tags, and card colour"
+            className="shrink-0 p-1 rounded text-academia-text-muted opacity-40 group-hover:opacity-100 hover:text-academia-accent transition-opacity"
+          >
+            <Tags className="h-3.5 w-3.5" />
+          </button>
+        </ChapterMetaEditor>
       </div>
 
       {/* Synopsis: the card's whole point. Click to edit, blur to save. */}
@@ -147,8 +175,31 @@ function IndexCard({
         </button>
       )}
 
-      <div className="px-3.5 pb-2 text-[10px] text-academia-text-muted tabular-nums">
-        {chapter.wordCount.toLocaleString()} words
+      <div className="px-3.5 pb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-academia-text-muted">
+        <span
+          data-testid="status-badge"
+          className="rounded-full px-1.5 py-0.5 border border-transparent"
+          style={{
+            color: status.hex,
+            backgroundColor: `color-mix(in srgb, ${status.hex} 14%, transparent)`,
+          }}
+        >
+          {status.label}
+        </span>
+        {chapter.pov && (
+          <span data-testid="pov-badge" className="text-academia-text-secondary">
+            POV: {chapter.pov}
+          </span>
+        )}
+        {chapter.tags.map((tag) => (
+          <span
+            key={tag}
+            className="rounded-full bg-academia-bg-tertiary border border-academia-border px-1.5 py-0.5 text-academia-text-secondary"
+          >
+            #{tag}
+          </span>
+        ))}
+        <span className="ml-auto tabular-nums">{chapter.wordCount.toLocaleString()} words</span>
       </div>
     </div>
   );
@@ -187,6 +238,9 @@ export function CorkboardView() {
     if (activeNovelId) void useCorkboardStore.getState().load(activeNovelId);
   }, [activeNovelId]);
 
+  const filter = useChapterFilterStore();
+  const isFiltering = isFilterActive(filter);
+
   const arranged = useMemo(
     () => arrangeChapters(chapters, mode, order),
     [chapters, mode, order]
@@ -198,6 +252,19 @@ export function CorkboardView() {
       .map((id) => byId.get(id))
       .filter((chapter): chapter is ChapterSummary => Boolean(chapter));
   }, [arranged, dragIds]);
+
+  // Filtering hides cards — it NEVER rearranges them. Cards keep their real
+  // position number so "chapter 7" stays 7 while its neighbours are hidden,
+  // and dragging is disabled entirely (committing a partial view would
+  // corrupt the order it can't see).
+  const visible = useMemo(
+    () => (isFiltering ? displayed.filter((c) => matchesChapterFilter(c, filter)) : displayed),
+    [displayed, isFiltering, filter]
+  );
+  const positionOf = useMemo(() => {
+    const map = new Map(displayed.map((chapter, index) => [chapter.id, index + 1]));
+    return (id: string) => map.get(id) ?? 0;
+  }, [displayed]);
 
   const novel = novels.find((n) => n.id === activeNovelId);
 
@@ -333,6 +400,15 @@ export function CorkboardView() {
         </div>
       </div>
 
+      <div className="shrink-0 flex items-center gap-3 px-6 py-2 border-b border-academia-border">
+        <ChapterFilterBar shown={visible.length} total={chapters.length} />
+        {isFiltering && (
+          <span className="ml-auto text-[11px] italic text-academia-text-muted shrink-0">
+            Filter on — drag to rearrange is paused
+          </span>
+        )}
+      </div>
+
       {error && (
         <div className="shrink-0 px-6 py-2 text-xs text-academia-error border-b border-academia-border">
           {error}
@@ -342,10 +418,12 @@ export function CorkboardView() {
       <div className="flex-1 overflow-y-auto p-6">
         {isLoading && chapters.length === 0 ? (
           <p className="text-xs text-academia-text-muted">Loading…</p>
-        ) : displayed.length === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center gap-2">
             <StickyNote className="h-8 w-8 text-academia-accent/30" />
-            <p className="text-sm text-academia-text-muted">No chapters yet.</p>
+            <p className="text-sm text-academia-text-muted">
+              {isFiltering ? 'No chapters match this filter.' : 'No chapters yet.'}
+            </p>
           </div>
         ) : (
           <div
@@ -359,14 +437,16 @@ export function CorkboardView() {
               handleDrop();
             }}
           >
-            {displayed.map((chapter, index) => (
+            {visible.map((chapter) => (
               <IndexCard
                 key={chapter.id}
                 chapter={chapter}
-                position={index + 1}
+                position={positionOf(chapter.id)}
                 isDragging={dragIds !== null && draggingIdRef.current === chapter.id}
                 isActive={chapter.id === activeChapterId}
+                canDrag={!isFiltering}
                 onDragStart={() => {
+                  if (isFiltering) return;
                   draggingIdRef.current = chapter.id;
                   setDragIds(arranged.map((c) => c.id));
                   setApplied(false);

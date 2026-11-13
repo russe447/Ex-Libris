@@ -92,6 +92,38 @@ const MAX_MESSAGE_CONTEXT_ENTRIES = 20;
 const MAX_MANUSCRIPT_CONTEXT_CHARS = 120000; // was an inline 50000 for documentContext
 const MAX_CHAPTERS_PER_NOVEL = 500;
 const MAX_SYNOPSIS_LENGTH = 4000; // index-card synopsis, not a second manuscript
+// Chapter metadata. Mirrors src/lib/chapterMeta.ts — ids only, labels are UI.
+const CHAPTER_STATUSES = new Set(['idea', 'draft', 'revised', 'complete']);
+const CARD_COLORS = new Set(['', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink']);
+const MAX_POV_LENGTH = 100;
+const MAX_TAGS_PER_CHAPTER = 20;
+const MAX_TAG_LENGTH = 40;
+
+/** Normalise + validate a tags payload. Returns { ok, json } or { ok:false }. */
+function validateTags(value) {
+  if (!Array.isArray(value) || value.length > MAX_TAGS_PER_CHAPTER) return { ok: false };
+  const cleaned = [];
+  const seen = new Set();
+  for (const raw of value) {
+    if (typeof raw !== 'string') return { ok: false };
+    const tag = sanitizeString(raw);
+    if (!tag || tag.length > MAX_TAG_LENGTH) return { ok: false };
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue; // dedupe, case-insensitive
+    seen.add(key);
+    cleaned.push(tag);
+  }
+  return { ok: true, json: JSON.stringify(cleaned) };
+}
+
+function parseTags(json) {
+  try {
+    const parsed = JSON.parse(json || '[]');
+    return Array.isArray(parsed) ? parsed.filter((tag) => typeof tag === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function validateCodexFields(fields) {
   if (fields == null) return { ok: true, json: '{}' };
@@ -156,6 +188,10 @@ function formatChapter(row, { withContent = true } = {}) {
     title: row.title,
     ...(withContent ? { content: row.content } : {}),
     synopsis: row.synopsis ?? '',
+    status: row.status ?? 'idea',
+    pov: row.pov ?? '',
+    tags: parseTags(row.tags),
+    color: row.color ?? '',
     wordCount: row.word_count,
     position: row.position,
     createdAt: row.created_at,
@@ -275,7 +311,7 @@ app.get('/api/novels/:novelId', (req, res) => {
     if (!requireNovel(req, res)) return;
     const novel = db.prepare('SELECT * FROM novels WHERE id = ?').get(req.params.novelId);
     const chapters = db.prepare(`
-      SELECT id, novel_id, title, synopsis, word_count, position, created_at, last_modified
+      SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
       FROM chapters WHERE novel_id = ?
       ORDER BY position ASC, created_at ASC, rowid ASC
     `).all(req.params.novelId);
@@ -339,7 +375,7 @@ app.post('/api/novels', (req, res) => {
     createNovelTx(novelId, sanitizedTitle, chapterId, 'Chapter One', now);
     const novel = db.prepare('SELECT * FROM novels WHERE id = ?').get(novelId);
     const chapters = db.prepare(`
-      SELECT id, novel_id, title, synopsis, word_count, position, created_at, last_modified
+      SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
       FROM chapters WHERE novel_id = ? ORDER BY position ASC
     `).all(novelId);
     res.status(201).json({
@@ -405,7 +441,7 @@ app.get('/api/novels/:novelId/chapters', (req, res) => {
   try {
     if (!requireNovel(req, res)) return;
     const rows = db.prepare(`
-      SELECT id, novel_id, title, synopsis, word_count, position, created_at, last_modified
+      SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
       FROM chapters WHERE novel_id = ?
       ORDER BY position ASC, created_at ASC, rowid ASC
     `).all(req.params.novelId);
@@ -448,7 +484,7 @@ app.put('/api/novels/:novelId/chapters/order', (req, res) => {
     }
     reorderChaptersTx(req.params.novelId, chapterIds, new Date().toISOString());
     const rows = db.prepare(`
-      SELECT id, novel_id, title, synopsis, word_count, position, created_at, last_modified
+      SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
       FROM chapters WHERE novel_id = ? ORDER BY position ASC
     `).all(req.params.novelId);
     res.json(rows.map((row) => formatChapter(row, { withContent: false })));
@@ -524,7 +560,7 @@ app.put('/api/novels/:novelId/chapters/:chapterId', (req, res) => {
     }
     const existing = findChapter(req.params.novelId, req.params.chapterId);
     if (!existing) return res.status(404).json({ error: 'Chapter not found' });
-    const { title, content, wordCount, synopsis } = req.body ?? {};
+    const { title, content, wordCount, synopsis, status, pov, tags, color } = req.body ?? {};
     let nextTitle = existing.title;
     if (title !== undefined) {
       nextTitle = sanitizeString(title);
@@ -548,11 +584,44 @@ app.put('/api/novels/:novelId/chapters/:chapterId', (req, res) => {
       }
       nextSynopsis = synopsis.replace(/\0/g, '');
     }
+    let nextStatus = existing.status ?? 'idea';
+    if (status !== undefined) {
+      if (!CHAPTER_STATUSES.has(status)) {
+        return res.status(400).json({ error: 'Unknown chapter status' });
+      }
+      nextStatus = status;
+    }
+    let nextPov = existing.pov ?? '';
+    if (pov !== undefined) {
+      if (typeof pov !== 'string' || pov.length > MAX_POV_LENGTH) {
+        return res.status(400).json({ error: 'POV name too long' });
+      }
+      nextPov = sanitizeString(pov);
+    }
+    let nextTags = existing.tags ?? '[]';
+    if (tags !== undefined) {
+      const result = validateTags(tags);
+      if (!result.ok) return res.status(400).json({ error: 'Invalid tags' });
+      nextTags = result.json;
+    }
+    let nextColor = existing.color ?? '';
+    if (color !== undefined) {
+      if (!CARD_COLORS.has(color)) {
+        return res.status(400).json({ error: 'Unknown card colour' });
+      }
+      nextColor = color;
+    }
     const now = new Date().toISOString();
     db.prepare(`
-      UPDATE chapters SET title = ?, content = ?, word_count = ?, synopsis = ?, last_modified = ?
-      WHERE id = ? AND novel_id = ?
-    `).run(nextTitle, nextContent, nextWordCount, nextSynopsis, now, req.params.chapterId, req.params.novelId);
+      UPDATE chapters
+         SET title = ?, content = ?, word_count = ?, synopsis = ?,
+             status = ?, pov = ?, tags = ?, color = ?, last_modified = ?
+       WHERE id = ? AND novel_id = ?
+    `).run(
+      nextTitle, nextContent, nextWordCount, nextSynopsis,
+      nextStatus, nextPov, nextTags, nextColor, now,
+      req.params.chapterId, req.params.novelId
+    );
     touchNovel(req.params.novelId, now);
     res.json(formatChapter(findChapter(req.params.novelId, req.params.chapterId)));
   } catch (error) {

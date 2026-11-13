@@ -7,6 +7,10 @@ export interface ApiChapter {
   title: string;
   content: string;
   synopsis: string;
+  status: Chapter['status'];
+  pov: string;
+  tags: string[];
+  color: string;
   wordCount: number;
   position: number;
   createdAt: string;
@@ -45,7 +49,16 @@ export async function createChapter(
 export async function updateChapter(
   novelId: string,
   chapterId: string,
-  updates: { title?: string; content?: string; wordCount?: number; synopsis?: string }
+  updates: {
+    title?: string;
+    content?: string;
+    wordCount?: number;
+    synopsis?: string;
+    status?: Chapter['status'];
+    pov?: string;
+    tags?: string[];
+    color?: string;
+  }
 ): Promise<Chapter> {
   const response = await fetch(`${API_URL}/api/novels/${novelId}/chapters/${chapterId}`, {
     method: 'PUT',

@@ -34,6 +34,12 @@ A distraction-free, AI-powered writing application designed for novelists and cr
 - **Automatic switching**: Opening a document loads its chat; deleting one removes its history
 - **Durable context**: Conversations survive refresh; the last 40 turns are sent back to Claude for context
 
+### 🏷️ Chapter Metadata & Filtering
+- Every chapter carries a **status** (Idea / Draft / Revised / Complete), a **POV character**, free-form **tags**, and an optional **card colour**
+- Edited from a small popover on each corkboard card — every control saves immediately (optimistic, rolled back on failure); POV suggests names already used plus the Codex's people; tags are deduped case-insensitively
+- **Filter chapters** by status, POV, and tags — in the Corkboard *and* the sidebar chapter list (one shared filter). Within a facet selections are OR'd, across facets AND'd
+- **Filtering changes visibility only.** Cards and rows keep their real position numbers, the saved order is never touched, and drag-reordering is paused while a filter is active (reordering a partial view would corrupt what it can't see). Great for reading one POV's thread in sequence
+
 ### 🗂️ Corkboard
 - **Index cards** for every chapter: title, position, word count, and an **editable synopsis** (click to edit, saved on blur)
 - **Drag and drop** to rearrange, with two explicit modes:

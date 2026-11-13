@@ -13,6 +13,10 @@ interface ApiChapterSummary {
   novelId: string;
   title: string;
   synopsis: string;
+  status: ChapterSummary['status'];
+  pov: string;
+  tags: string[];
+  color: string;
   wordCount: number;
   position: number;
   createdAt: string;
