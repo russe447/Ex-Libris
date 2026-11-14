@@ -7,12 +7,7 @@
 // on novel switch by libraryStore.
 
 import { create } from 'zustand';
-import {
-  ChapterFilter,
-  ChapterStatus,
-  EMPTY_FILTER,
-  isFilterActive,
-} from '@/lib/chapterMeta';
+import { ChapterFilter, ChapterStatus, EMPTY_FILTER } from '@/lib/chapterMeta';
 
 interface ChapterFilterState extends ChapterFilter {
   toggleStatus: (status: ChapterStatus) => void;
@@ -46,8 +41,3 @@ export const useChapterFilterStore = create<ChapterFilterState>((set) => ({
 
   clearFilters: () => set({ ...EMPTY_FILTER }),
 }));
-
-/** Convenience selector for components. */
-export function useIsFiltering(): boolean {
-  return useChapterFilterStore((state) => isFilterActive(state));
-}

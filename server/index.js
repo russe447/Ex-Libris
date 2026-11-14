@@ -38,7 +38,7 @@ const RATE_LIMIT_WINDOW = 60000; // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 60; // 60 requests per minute
 
 function rateLimit(req, res, next) {
-  const ip = req.ip || req.connection.remoteAddress;
+  const ip = req.ip || req.socket.remoteAddress;
   const now = Date.now();
   
   if (!rateLimitMap.has(ip)) {
@@ -198,6 +198,18 @@ function formatChapter(row, { withContent = true } = {}) {
     lastModified: row.last_modified,
   };
 }
+/**
+ * Chapter summaries (everything but the prose) in reading order. One prepared
+ * statement instead of the same SELECT pasted into four handlers.
+ */
+const chapterSummariesStmt = db.prepare(`
+  SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
+  FROM chapters WHERE novel_id = ?
+  ORDER BY position ASC, created_at ASC, rowid ASC
+`);
+function listChapterSummaries(novelId) {
+  return chapterSummariesStmt.all(novelId).map((row) => formatChapter(row, { withContent: false }));
+}
 function novelExists(id) {
   return Boolean(db.prepare('SELECT id FROM novels WHERE id = ?').get(id));
 }
@@ -233,7 +245,9 @@ app.use(express.json({ limit: '10mb' }));
 // and stays unmetered.
 app.use(['/api/chat', '/api/refine', '/api/settings/ai/test'], rateLimit);
 
-// Clean up rate limit map periodically to prevent memory leaks
+// Clean up rate limit map periodically to prevent memory leaks. unref(): a
+// housekeeping timer must never be the thing keeping the process alive (test
+// runners and the embedding Electron shell both want a quiet event loop).
 setInterval(() => {
   const now = Date.now();
   for (const [ip, record] of rateLimitMap.entries()) {
@@ -241,7 +255,7 @@ setInterval(() => {
       rateLimitMap.delete(ip);
     }
   }
-}, RATE_LIMIT_WINDOW);
+}, RATE_LIMIT_WINDOW).unref();
 
 // System prompts
 const SYSTEM_PROMPTS = {
@@ -310,14 +324,9 @@ app.get('/api/novels/:novelId', (req, res) => {
   try {
     if (!requireNovel(req, res)) return;
     const novel = db.prepare('SELECT * FROM novels WHERE id = ?').get(req.params.novelId);
-    const chapters = db.prepare(`
-      SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
-      FROM chapters WHERE novel_id = ?
-      ORDER BY position ASC, created_at ASC, rowid ASC
-    `).all(req.params.novelId);
     res.json({
       ...formatNovel(novel),
-      chapters: chapters.map((row) => formatChapter(row, { withContent: false })),
+      chapters: listChapterSummaries(req.params.novelId),
     });
   } catch (error) {
     console.error('Error fetching novel:', error);
@@ -374,15 +383,12 @@ app.post('/api/novels', (req, res) => {
     const now = new Date().toISOString();
     createNovelTx(novelId, sanitizedTitle, chapterId, 'Chapter One', now);
     const novel = db.prepare('SELECT * FROM novels WHERE id = ?').get(novelId);
-    const chapters = db.prepare(`
-      SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
-      FROM chapters WHERE novel_id = ? ORDER BY position ASC
-    `).all(novelId);
+    const chapters = listChapterSummaries(novelId);
     res.status(201).json({
       ...formatNovel(novel),
       chapterCount: chapters.length,
       wordCount: 0,
-      chapters: chapters.map((row) => formatChapter(row, { withContent: false })),
+      chapters,
     });
   } catch (error) {
     console.error('Error creating novel:', error);
@@ -418,6 +424,7 @@ const deleteNovelTx = db.transaction((novelId) => {
   db.prepare('DELETE FROM chat_messages WHERE novel_id = ?').run(novelId);
   db.prepare('DELETE FROM codex_entries WHERE novel_id = ?').run(novelId);
   db.prepare('DELETE FROM codex_dismissed_suggestions WHERE novel_id = ?').run(novelId);
+  db.prepare('DELETE FROM chapter_snapshots WHERE novel_id = ?').run(novelId);
   db.prepare('DELETE FROM chapters WHERE novel_id = ?').run(novelId);
   db.prepare('DELETE FROM novels WHERE id = ?').run(novelId);
 });
@@ -440,12 +447,7 @@ function findChapter(novelId, chapterId) {
 app.get('/api/novels/:novelId/chapters', (req, res) => {
   try {
     if (!requireNovel(req, res)) return;
-    const rows = db.prepare(`
-      SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
-      FROM chapters WHERE novel_id = ?
-      ORDER BY position ASC, created_at ASC, rowid ASC
-    `).all(req.params.novelId);
-    res.json(rows.map((row) => formatChapter(row, { withContent: false })));
+    res.json(listChapterSummaries(req.params.novelId));
   } catch (error) {
     console.error('Error fetching chapters:', error);
     res.status(500).json({ error: 'Failed to fetch chapters' });
@@ -479,15 +481,16 @@ app.put('/api/novels/:novelId/chapters/order', (req, res) => {
       .all(req.params.novelId)
       .map((row) => row.id);
     // The order must be a permutation of the novel's chapters — no more, no less.
-    if (existing.length !== chapterIds.length || chapterIds.some((id) => !existing.includes(id))) {
+    const existingSet = new Set(existing);
+    if (
+      existing.length !== chapterIds.length ||
+      new Set(chapterIds).size !== chapterIds.length ||
+      chapterIds.some((id) => !existingSet.has(id))
+    ) {
       return res.status(400).json({ error: 'chapterIds must list every chapter exactly once' });
     }
     reorderChaptersTx(req.params.novelId, chapterIds, new Date().toISOString());
-    const rows = db.prepare(`
-      SELECT id, novel_id, title, synopsis, status, pov, tags, color, word_count, position, created_at, last_modified
-      FROM chapters WHERE novel_id = ? ORDER BY position ASC
-    `).all(req.params.novelId);
-    res.json(rows.map((row) => formatChapter(row, { withContent: false })));
+    res.json(listChapterSummaries(req.params.novelId));
   } catch (error) {
     console.error('Error reordering chapters:', error);
     res.status(500).json({ error: 'Failed to reorder chapters' });
@@ -631,6 +634,9 @@ app.put('/api/novels/:novelId/chapters/:chapterId', (req, res) => {
 });
 // Deleting renumbers the survivors so `position` stays contiguous 0..n-1.
 const deleteChapterTx = db.transaction((novelId, chapterId, now) => {
+  // Explicit, like deleteNovelTx: snapshots also cascade via FK, but the data
+  // must go even if foreign_keys is ever off.
+  db.prepare('DELETE FROM chapter_snapshots WHERE chapter_id = ?').run(chapterId);
   db.prepare('DELETE FROM chapters WHERE id = ? AND novel_id = ?').run(chapterId, novelId);
   const remaining = db
     .prepare('SELECT id FROM chapters WHERE novel_id = ? ORDER BY position ASC, created_at ASC, rowid ASC')

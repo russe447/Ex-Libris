@@ -73,6 +73,9 @@ export function FloatingRefineMenu({ editor }: FloatingRefineMenuProps) {
     }
 
     setTimeout(() => {
+      // The 10ms defer can outlive the editor (chapter switch, snapshot
+      // restore remount) — touching a destroyed view throws.
+      if (editor.isDestroyed) return;
       const { from, to } = editor.state.selection;
       const hasSelection = from !== to;
       

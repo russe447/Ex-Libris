@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useCodexStore } from '@/stores/codexStore';
 import { useEditorStore } from '@/stores/editorStore';
+import { useSplitEditorStore } from '@/stores/splitEditorStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 import * as novelsService from '@/services/novels';
 const SCAN_DEBOUNCE_MS = 800;
@@ -77,10 +78,25 @@ export function useCodexSuggestionScan(enabled: boolean): void {
       if (state.chapterId !== previous.chapterId) schedule(0);
       else if (state.content !== previous.content) schedule(SCAN_DEBOUNCE_MS);
     });
+    // The split pane edits a second chapter through its own buffer; its
+    // keystrokes keep that chapter's tally fresh the same way.
+    let splitDebounce: number | undefined;
+    const unsubscribeSplit = useSplitEditorStore.subscribe((state, previous) => {
+      if (state.content === previous.content || !state.chapterId) return;
+      const chapterId = state.chapterId;
+      const content = state.content;
+      window.clearTimeout(splitDebounce);
+      splitDebounce = window.setTimeout(() => {
+        const novelId = useLibraryStore.getState().activeNovelId;
+        if (novelId) useCodexStore.getState().scanChapter(novelId, chapterId, content);
+      }, SCAN_DEBOUNCE_MS);
+    });
     return () => {
       window.clearTimeout(debounceTimer);
+      window.clearTimeout(splitDebounce);
       cancelIdle?.();
       unsubscribe();
+      unsubscribeSplit();
     };
   }, [enabled, activeNovelId]);
 }

@@ -121,38 +121,45 @@ export async function* streamChatMessage(
   let buffer = '';
   let received = 0;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  // try/finally: if the consumer stops iterating (an error mid-stream, or the
+  // generator being closed early), cancel the reader so the HTTP stream is
+  // released instead of idling until the server finishes.
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    // Chunks split anywhere, including mid-event — buffer until a blank line.
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split('\n');
-    buffer = events.pop() ?? '';
+      // Chunks split anywhere, including mid-event — buffer until a blank line.
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n');
+      buffer = events.pop() ?? '';
 
-    for (const line of events) {
-      if (!line.startsWith('data: ')) continue;
-      const data = line.slice(6);
-      if (data === '[DONE]') return;
+      for (const line of events) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') return;
 
-      try {
-        const parsed = JSON.parse(data);
-        // The server can fail *after* streaming has begun; it reports that as
-        // a final error event rather than a dropped connection.
-        if (parsed.error) {
-          throw new AiRequestError(parsed.error, parsed.code ?? 'unknown', parsed.hint ?? null, received > 0);
+        try {
+          const parsed = JSON.parse(data);
+          // The server can fail *after* streaming has begun; it reports that as
+          // a final error event rather than a dropped connection.
+          if (parsed.error) {
+            throw new AiRequestError(parsed.error, parsed.code ?? 'unknown', parsed.hint ?? null, received > 0);
+          }
+          if (parsed.route) {
+            yield { type: 'route', route: parsed.route as RouteInfo };
+          }
+          if (parsed.text) {
+            received += 1;
+            yield { type: 'text', text: parsed.text };
+          }
+        } catch (error) {
+          if (error instanceof AiRequestError) throw error;
+          // Skip invalid JSON
         }
-        if (parsed.route) {
-          yield { type: 'route', route: parsed.route as RouteInfo };
-        }
-        if (parsed.text) {
-          received += 1;
-          yield { type: 'text', text: parsed.text };
-        }
-      } catch (error) {
-        if (error instanceof AiRequestError) throw error;
-        // Skip invalid JSON
       }
     }
+  } finally {
+    reader.cancel().catch(() => {});
   }
 }

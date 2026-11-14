@@ -284,8 +284,16 @@ function rebuild() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(buildTemplate()));
 }
 
+/** dialog.showMessageBox(undefined, opts) misparses — only pass a window when
+ *  one exists. */
+function messageBox(options) {
+  return targetWindow && !targetWindow.isDestroyed()
+    ? dialog.showMessageBox(targetWindow, options)
+    : dialog.showMessageBox(options);
+}
+
 function showAbout() {
-  void dialog.showMessageBox(targetWindow ?? undefined, {
+  void messageBox({
     type: 'info',
     title: 'About Ex Libris',
     message: 'Ex Libris',
@@ -323,7 +331,7 @@ function showShortcuts() {
     `${mod}+Shift+L/E/R/J text alignment.`,
     `Select any prose to get the AI refine menu.`,
   ];
-  void dialog.showMessageBox(targetWindow ?? undefined, {
+  void messageBox({
     type: 'none',
     title: 'Keyboard Shortcuts',
     message: 'Keyboard shortcuts',

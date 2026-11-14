@@ -154,49 +154,64 @@ async function ollamaStream({ baseUrl, model, system, messages, onText, maxToken
   const decoder = new TextDecoder();
   let buffer = '';
   let full = '';
-
-  for (;;) {
-    // A daemon that accepts the connection and then goes quiet is the worst
-    // case for the UI, so the read itself is on a clock.
-    const chunk = await Promise.race([
-      reader.read(),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new AiError('ollama_timeout', 'Ollama stopped sending output.', {
-            hint: 'The model may have been unloaded or run out of memory.',
-          })),
-          OLLAMA_IDLE_TIMEOUT
-        )
-      ),
-    ]);
-
-    if (chunk.done) break;
-    buffer += decoder.decode(chunk.value, { stream: true });
-
-    // NDJSON: one JSON object per line.
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      let parsed;
-      try {
-        parsed = JSON.parse(trimmed);
-      } catch {
-        continue;
-      }
-      if (parsed.error) {
-        throw new AiError('ollama_error', `Ollama: ${parsed.error}`);
-      }
-      const text = parsed.message?.content ?? '';
-      if (text) {
-        full += text;
-        onText?.(text);
-      }
-      if (parsed.done) return full;
+  // A daemon that accepts the connection and then goes quiet is the worst
+  // case for the UI, so each read is on a clock. The timer is CLEARED once
+  // the read wins — the previous Promise.race version leaked one pending
+  // two-minute timer per streamed chunk.
+  const readWithIdleTimeout = async () => {
+    let timer;
+    try {
+      return await Promise.race([
+        reader.read(),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new AiError('ollama_timeout', 'Ollama stopped sending output.', {
+              hint: 'The model may have been unloaded or run out of memory.',
+            })),
+            OLLAMA_IDLE_TIMEOUT
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
     }
+  };
+  try {
+    for (;;) {
+      const chunk = await readWithIdleTimeout();
+
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+
+      // NDJSON: one JSON object per line.
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(trimmed);
+        } catch {
+          continue;
+        }
+        if (parsed.error) {
+          throw new AiError('ollama_error', `Ollama: ${parsed.error}`);
+        }
+        const text = parsed.message?.content ?? '';
+        if (text) {
+          full += text;
+          onText?.(text);
+        }
+        if (parsed.done) return full;
+      }
+    }
+    return full;
+  } finally {
+    // Whatever way we leave (done, mid-stream error, idle timeout), don't
+    // leave the HTTP connection to the daemon dangling.
+    reader.cancel().catch(() => {});
   }
-  return full;
 }
 
 /* ------------------------------------------------------------ Anthropic */

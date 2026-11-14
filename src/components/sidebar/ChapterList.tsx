@@ -7,14 +7,7 @@ import { useEditorStore } from '@/stores/editorStore';
 import { useChapterFilterStore } from '@/stores/chapterFilterStore';
 import { ChapterFilterBar } from '@/components/chapters/ChapterFilterBar';
 import { cardColorHex, isFilterActive, matchesChapterFilter, statusInfo } from '@/lib/chapterMeta';
-import { cn } from '@/lib/utils';
-/** Move `from` to `to` in a copy of the array. */
-function reindex<T>(items: T[], from: number, to: number): T[] {
-  const next = [...items];
-  const [moved] = next.splice(from, 1);
-  next.splice(to, 0, moved);
-  return next;
-}
+import { cn, reindex } from '@/lib/utils';
 export function ChapterList() {
   const chapters = useLibraryStore((state) => state.chapters);
   const activeChapterId = useLibraryStore((state) => state.activeChapterId);

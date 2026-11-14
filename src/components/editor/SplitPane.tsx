@@ -208,18 +208,22 @@ export function SplitPane() {
 
   // Keep the split buffer in step with the selection: open it for a different
   // chapter, close it (flushing) when mirroring or when nothing is selected.
+  // Keyed on the chapter ID, not the summary object — summaries get a fresh
+  // identity on every word-count tick, and this effect must not churn (and
+  // setState) once per keystroke.
+  const selectedId = selected?.id ?? null;
   const [bufferError, setBufferError] = useState(false);
   useEffect(() => {
     const store = useSplitEditorStore.getState();
     setBufferError(false);
-    if (!selected || !activeNovelId || isMirror) {
+    if (!selectedId || !activeNovelId || isMirror) {
       if (store.chapterId) void store.close();
       return;
     }
-    void store.open(activeNovelId, selected.id).then(() => {
+    void store.open(activeNovelId, selectedId).then(() => {
       if (useSplitEditorStore.getState().chapterId === null) setBufferError(true);
     });
-  }, [selected, activeNovelId, isMirror]);
+  }, [selectedId, activeNovelId, isMirror]);
 
   // Leaving the pane (close button, view switch, unmount) persists its edits.
   useEffect(() => {

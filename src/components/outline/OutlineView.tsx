@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { cn } from '@/lib/utils';
+import { cn, reindex } from '@/lib/utils';
 
 /** Plain-text preview of a chapter's opening line, for the outline cards. */
 function excerpt(html: string, limit = 220): string {
@@ -18,12 +18,6 @@ function excerpt(html: string, limit = 220): string {
   return text.length > limit ? `${text.slice(0, limit).trimEnd()}…` : text;
 }
 
-function reindex<T>(items: T[], from: number, to: number): T[] {
-  const next = [...items];
-  const [moved] = next.splice(from, 1);
-  next.splice(to, 0, moved);
-  return next;
-}
 
 /**
  * The Outline workspace: the chapter list as the main surface.

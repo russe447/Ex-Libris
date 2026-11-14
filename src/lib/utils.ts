@@ -40,6 +40,14 @@ export function countWords(text: string): number {
   return words.filter(word => word.length > 0).length;
 }
 
+/** Move the item at `from` to `to` in a copy of the array. */
+export function reindex<T>(items: T[], from: number, to: number): T[] {
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
 /**
  * Extract preceding context from text for AI refinement.
  */
@@ -54,17 +62,3 @@ export function extractPrecedingContext(
   return fullText.substring(startIndex, selectionStart);
 }
 
-/**
- * Create a debounced version of a function.
- */
-export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  
-  return (...args: Parameters<T>) => {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
